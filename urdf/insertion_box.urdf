@@ -1,0 +1,40 @@
+<?xml version="0.0" ?>
+<robot name="insertion_box.urdf">
+  <link name="base">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <mass value="0.0"/>
+      <inertia ixx="0.05" ixy="0" ixz="0" iyy="0.06" iyz="0" izz="0.03"/>
+    </inertial>
+  </link>
+
+  <joint name="empty" type="fixed">
+    <parent link="base"/>
+    <child link="box"/>
+  </joint>
+
+  <link name="box">
+    <inertial>
+      <origin rpy="3.14159 0 0" xyz="0 0 0.02"/>
+      <mass value="0"/>
+      <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001"/>
+    </inertial>
+     
+     <visual>
+      <origin rpy="1.57075 0 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="stl/visual/insertion_box.stl" scale="0.001 0.001 0.001"/>
+      </geometry>
+       <material name="white">
+        <color rgba="0.8 0.8 0.8 1"/>
+      </material>
+    </visual>
+    
+    <collision concave="yes">
+      <origin rpy="1.57075 0 0" xyz="0 0 0"/>
+      <geometry>
+           <mesh filename="stl/collision/insertion_box.stl" scale="0.001 0.001 0.001"/>
+      </geometry>
+    </collision>
+  </link>
+</robot>
