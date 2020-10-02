@@ -7,3 +7,7 @@ __pycache/
 
 # test
 test.*
+
+# backup
+backup/
+

@@ -5,7 +5,7 @@ import gym
 import math
 import random
 import numpy as np
-from gym import error,spaces,utils
+from gym import spaces
 from gym.utils import seeding
 
 
@@ -15,21 +15,19 @@ class PandaEnv(gym.Env):
         p.connect(p.GUI)
         p.resetDebugVisualizerCamera(cameraDistance=1.5,cameraYaw=0,\
                                      cameraPitch=-40,cameraTargetPosition=[0.55,-0.35,0.2])
-        self.action_space=spaces.Box(np.array([-1]*8),np.array([1]*8)) # 末端7维信息+手指1维
-        self.observation_space=spaces.Box(np.array([-1]*9),np.array([1]*9)) # [夹爪1值 夹爪2值 末端位置x y z 四元数]
+        self.action_space=spaces.Box(np.array([-1]*4),np.array([1]*4)) # 末端3维信息+手指1维 (默认朝下)
+        self.observation_space=spaces.Box(np.array([-1]*5),np.array([1]*5)) # [夹爪1值 夹爪2值 末端位置x y z]
 
     # 机械臂根据action执行动作，通过calculateInverseKinematics解算关节位置
     # observation,info分别表示机械臂、目标物体的位置
     def step(self,action):
         p.configureDebugVisualizer(p.COV_ENABLE_SINGLE_STEP_RENDERING)
-        dv=0.005
-        dw=0.005
-
+        orientation=p.getQuaternionFromEuler([0.,-math.pi,math.pi/2.])
+        dv=0.3
         dx=action[0]*dv
         dy=action[1]*dv
         dz=action[2]*dv
-        orientation=[i*dw for i in action[3:7]]
-        fingers=action[7]
+        fingers=action[3]
 
         currentPose=p.getLinkState(self.pandaUid,11)
         currentPosition=currentPose[0]
@@ -66,8 +64,12 @@ class PandaEnv(gym.Env):
         tableUid=p.loadURDF("table/table.urdf",basePosition=[0.5,0,-0.65])
 
         # soft object add here
-        state_object=[random.uniform(0.5,0.8),random.uniform(-0.2,0.2),0.05]
-        self.objectUid=p.loadURDF("random_urdfs/000/000.urdf",basePosition=state_object)
+        state_object=[random.uniform(0.5,0.8), random.uniform(0.0, -0.4), 0.0]# xyz
+        self.objectUid=p.loadURDF("urdf/pipe.urdf",basePosition=state_object, 
+			                     useFixedBase=0, flags=p.URDF_USE_SELF_COLLISION, globalScaling=0.01)
+        object_sum = p.getNumJoints(self.objectUid)
+        for i in random.sample(range(object_sum), random.randint(5, object_sum)):
+            p.resetJointState(self.objectUid, i, random.uniform(0, math.pi))
 
         state_robot=p.getLinkState(self.pandaUid,11)[0]
         state_fingers=(p.getJointState(self.pandaUid,9)[0],p.getJointState(self.pandaUid,10)[0])
