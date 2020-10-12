@@ -1,4 +1,5 @@
 import os
+import time
 import pybullet as p
 import pybullet_data
 import gym
@@ -17,6 +18,15 @@ class PandaEnv(gym.Env):
                                      cameraPitch=-40,cameraTargetPosition=[0.55,-0.35,0.2])
         self.action_space=spaces.Box(np.array([-1]*4),np.array([1]*4)) # 末端3维信息+手指1维 (默认朝下)
         self.observation_space=spaces.Box(np.array([-1]*5),np.array([1]*5)) # [夹爪1值 夹爪2值 末端位置x y z]
+        self.object_joints_num = 1
+        self.pandaEndEffectorIndex = 11
+        self.pandaNumDofs = 7
+        self.t = 0.
+        self.timeStep = 1./240
+        self.cur_state = 0
+        self.state_t = 0
+        self.stateDurations = [0.25,1.5,2,1,1.5,1.5,0.5,0.25,10]
+        self.reset()
 
     # 机械臂根据action执行动作，通过calculateInverseKinematics解算关节位置
     # observation,info分别表示机械臂、目标物体的位置
@@ -34,8 +44,8 @@ class PandaEnv(gym.Env):
         newPosition=[currentPosition[0]+dx,
                      currentPosition[1]+dy,
                      currentPosition[2]+dz]
-        jointPoses=p.calculateInverseKinematics(self.pandaUid,11,newPosition,orientation)[0:7]
-        p.setJointMotorControlArray(self.pandaUid,list(range(7))+[9,10],p.POSITION_CONTROL,list(jointPoses)+2*[fingers])
+        jointPoses=p.calculateInverseKinematics(self.pandaUid,self.pandaEndEffectorIndex,newPosition,orientation)[0:7]
+        p.setJointMotorControlArray(self.pandaUid,list(range(self.pandaNumDofs))+[9,10],p.POSITION_CONTROL,list(jointPoses)+2*[fingers])
         p.stepSimulation()
 
         state_object,_=p.getBasePositionAndOrientation(self.objectUid)
@@ -50,6 +60,115 @@ class PandaEnv(gym.Env):
         observation=state_robot+state_fingers
         return observation,reward,done,info
 
+    def random_grasp(self):
+        # p.configureDebugVisualizer(p.COV_ENABLE_SINGLE_STEP_RENDERING)
+
+        # calculate target pos and dir
+        grasp_joint_idx = random.randint(0, self.object_joints_num)
+        targetPos, targetOrn = p.getLinkState(self.objectUid, grasp_joint_idx)[0:2]
+        targetOrn = p.getEulerFromQuaternion(targetOrn)
+
+        # start grasping
+        while(self.cur_state != 999):
+            time.sleep(1./240)
+            p.stepSimulation()
+            # switch state
+            # self.t += self.timeStep
+            self.update_state()
+            self.grasp_process(self.cur_state, targetPos, targetOrn)
+
+        return 
+
+    def grasp_process(self, state, targetPos, targetOrn):
+        # gripper moving to grasping-target x,y 
+        if state == 1:
+            jointPoses = p.calculateInverseKinematics(
+                    self.pandaUid, self.pandaEndEffectorIndex, 
+                    targetPos+np.array([0,0.03,0]), p.getQuaternionFromEuler([math.pi/2, targetOrn[1]+math.pi/2, 0])
+                )
+            for i in range(self.pandaNumDofs):
+                p.setJointMotorControl2(self.pandaUid, i, p.POSITION_CONTROL, jointPoses[i], force=5.*240.)
+
+        # gripper moving to grasping-target z
+        if state == 2:
+            jointPoses = p.calculateInverseKinematics(
+                    self.pandaUid, self.pandaEndEffectorIndex, 
+                    targetPos+np.array([0,0.001,0]), p.getQuaternionFromEuler([math.pi/2, targetOrn[1]+math.pi/2, 0])
+                )
+            for i in range(self.pandaNumDofs):
+                p.setJointMotorControl2(self.pandaUid, i, p.POSITION_CONTROL, jointPoses[i], force=5.*240.)
+        
+        # grasping
+        if state == 3:
+            for i in [9,10]:
+                p.setJointMotorControl2(self.pandaUid, i, p.POSITION_CONTROL, 0.01 ,force= 2000)
+        
+        # lift
+        if state == 4:
+            targetPos = [0.2, 0.1, -0.5]
+            jointPoses = p.calculateInverseKinematics(
+                self.pandaUid, self.pandaEndEffectorIndex, targetPos, 
+                p.getQuaternionFromEuler([math.pi/2, -math.pi, 0]))
+            for i in range(self.pandaNumDofs):
+                p.setJointMotorControl2(self.pandaUid, i, p.POSITION_CONTROL, jointPoses[i], force=5.*240)
+
+            # print("base", p.getEulerFromQuaternion(p.getBasePositionAndOrientation(self.objectUid)[1]))
+            # print("link", p.getEulerFromQuaternion(p.getLinkState(self.objectUid, 0)[1]))
+            # print("gripper", p.getEulerFromQuaternion(p.getLinkState(self.pandaUid,8)[1]))
+            # # print(p.getContactPoints(self.pandaUid, self.objectUid,9, 0))
+            # print("\n")
+
+        # gripper moving to manipulation-target (y,z)
+        if state == 5:
+            targetPos = [0.06, 0.10, -0.5]
+            jointPoses = p.calculateInverseKinematics(
+                self.pandaUid, self.pandaEndEffectorIndex, 
+                targetPos, p.getQuaternionFromEuler([math.pi/2, -math.pi, 0]))
+            for i in range(self.pandaNumDofs):
+                p.setJointMotorControl2(self.pandaUid, i, p.POSITION_CONTROL, jointPoses[i], force=5.*240.)
+
+            # print("base", p.getEulerFromQuaternion(p.getBasePositionAndOrientation(self.objectUid)[1]))
+            # print("link", p.getEulerFromQuaternion(p.getLinkState(self.objectUid, 0)[1]))
+            # print("hole", p.getEulerFromQuaternion(p.getBasePositionAndOrientation(self.baseId)[1]))
+            # print("\n")
+            # print(p.getContactPoints(self.pandaUid, self.objectUid,9, 0))
+            # print(p.getDynamicsInfo(self.pandaUid, 9))
+            
+
+
+        # gripper moving to manipulating-target z
+        if state == 6:
+            targetPos = [0.02, 0.10, -0.5]
+            jointPoses = p.calculateInverseKinematics(
+                self.pandaUid, self.pandaEndEffectorIndex, 
+                targetPos, p.getQuaternionFromEuler([math.pi/2, -math.pi, 0]))
+            for i in range(self.pandaNumDofs):
+                p.setJointMotorControl2(self.pandaUid, i, p.POSITION_CONTROL, jointPoses[i], force=5.*240.)
+
+        # loosing
+        if state == 7:
+            for i in [9,10]:
+                p.setJointMotorControl2(self.pandaUid, i, p.POSITION_CONTROL, 0.02 ,force= 20)
+
+
+        # completion
+        if state == 8:
+            targetPos = [0, 0.2, -0.5]
+            jointPoses = p.calculateInverseKinematics(
+                self.pandaUid, self.pandaEndEffectorIndex, 
+                targetPos, p.getQuaternionFromEuler([math.pi/2, -math.pi, 0]))
+            for i in range(self.pandaNumDofs):
+                p.setJointMotorControl2(self.pandaUid, i, p.POSITION_CONTROL, jointPoses[i], force=5.*240.)
+
+
+    def update_state(self):
+        self.state_t += self.timeStep
+        if self.state_t > self.stateDurations[self.cur_state]:
+            self.cur_state += 1
+            self.state_t = 0
+            if self.cur_state >= len(self.stateDurations):
+                self.cur_state = 0
+    
     def reset(self):
         p.resetSimulation()
         p.configureDebugVisualizer(p.COV_ENABLE_RENDERING,0)
@@ -67,8 +186,8 @@ class PandaEnv(gym.Env):
         state_object=[random.uniform(0.5,0.8), random.uniform(0.0, -0.4), 0.0]# xyz
         self.objectUid=p.loadURDF("urdf/pipe.urdf",basePosition=state_object, 
 			                     useFixedBase=0, flags=p.URDF_USE_SELF_COLLISION, globalScaling=0.01)
-        object_sum = p.getNumJoints(self.objectUid)
-        for i in random.sample(range(object_sum), random.randint(5, object_sum)):
+        self.object_joints_num = p.getNumJoints(self.objectUid)
+        for i in random.sample(range(self.object_joints_num), random.randint(5, self.object_joints_num)):
             p.resetJointState(self.objectUid, i, random.uniform(0, math.pi))
 
         state_robot=p.getLinkState(self.pandaUid,11)[0]

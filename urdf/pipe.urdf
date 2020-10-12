@@ -6,8 +6,10 @@
 <robot name="pipe" xmlns:xacro="http://www.ros.org/wiki/xacro">
 
   <link name="pipe_link0">
-  	<inertial>
-      <mass value="100.11"/>
+    <inertial>
+      <origin xyz='0 0 0'/>
+      <mass value="0.00111"/>
+      <origin xyz="0 0 0"/>
       <inertia ixx="0.1" ixy="0" ixz="0" iyy="0.1" iyz="0" izz="0.1"/>
     </inertial>
     <visual>
@@ -16,8 +18,8 @@
         <mesh filename="../obj/cylinder_3_1_1.obj"/>
       </geometry>
       <material name="panda_white">
-    		<color rgba="0.91 0.91 0.91 1."/>
-  		</material>
+        <color rgba="0.91 0.91 0.91 1."/>
+      </material>
     </visual>
     <collision>
       <origin xyz="0 3 0"/>
@@ -28,18 +30,23 @@
     </collision>
   </link>
 
-  <joint name="pipe_joint1" type="continuous">
-    <safety_controller k_position="100.0" k_velocity="40.0" soft_lower_limit="0.1001" soft_upper_limit="2.8973"/>
-    <origin rpy="0 0 0" xyz="0 5.5 0"/>
+
+  <joint name="pipe_joint1" type="fixed">
+    <origin rpy="0 0 0" xyz="0 3 0"/>
     <parent link="pipe_link0"/>
     <child link="pipe_link1"/>
-    <axis xyz="1 0 0"/>
-    <limit effort="87" lower="-0.9100.1171" upper="0.9100.1171" velocity="2.1750"/>
   </joint>
 
+
   <link name="pipe_link1">
+    <contact>
+      <lateral_friction value="40.0"/>
+      <spinning_friction value="0"/>
+      <rolling_friction value="0"/>
+    </contact>
     <inertial>
-      <mass value="100.11"/>
+      <origin xyz="0 1.5 0"/>
+      <mass value="0.0111"/>
       <inertia ixx="0.1" ixy="0" ixz="0" iyy="0.1" iyz="0" izz="0.1"/>
     </inertial>
     <visual>
@@ -60,18 +67,19 @@
     </collision>
   </link>
 
+
   <joint name="pipe_joint2" type="continuous">
     <safety_controller k_position="100.0" k_velocity="40.0" soft_lower_limit="0.1001" soft_upper_limit="2.8973"/>
     <origin rpy="0 0 0" xyz="0 5.5 0"/>
     <parent link="pipe_link1"/>
     <child link="pipe_link2"/>
     <axis xyz="0 0 1"/>
-    <limit effort="87" lower="-0.9100.1171" upper="0.9100.1171" velocity="2.1750"/>
+    <limit effort="87" lower="-0.90.011171" upper="0.90.011171" velocity="2.1750"/>
   </joint>
 
   <link name="pipe_link2">
     <inertial>
-      <mass value="100.11"/>
+      <mass value="0.0111"/>
       <inertia ixx="0.1" ixy="0" ixz="0" iyy="0.1" iyz="0" izz="0.1"/>
     </inertial>
     <visual>
@@ -99,12 +107,12 @@
     <parent link="pipe_link2"/>
     <child link="pipe_link3"/>
     <axis xyz="1 0 0"/>
-    <limit effort="87" lower="-0.9100.1171" upper="0.9100.1171" velocity="2.1750"/>
+    <limit effort="87" lower="-0.90.011171" upper="0.90.011171" velocity="2.1750"/>
   </joint>
 
   <link name="pipe_link3">
     <inertial>
-      <mass value="100.11"/>
+      <mass value="0.0111"/>
       <inertia ixx="0.1" ixy="0" ixz="0" iyy="0.1" iyz="0" izz="0.1"/>
     </inertial>
     <visual>
@@ -131,12 +139,12 @@
     <parent link="pipe_link3"/>
     <child link="pipe_link4"/>
     <axis xyz="0 0 1"/>
-    <limit effort="87" lower="-0.9100.1171" upper="0.9100.1171" velocity="2.1750"/>
+    <limit effort="87" lower="-0.90.011171" upper="0.90.011171" velocity="2.1750"/>
   </joint>
 
   <link name="pipe_link4">
     <inertial>
-      <mass value="100.11"/>
+      <mass value="0.0111"/>
       <inertia ixx="0.1" ixy="0" ixz="0" iyy="0.1" iyz="0" izz="0.1"/>
     </inertial>
     <visual>
@@ -163,12 +171,12 @@
     <parent link="pipe_link4"/>
     <child link="pipe_link5"/>
     <axis xyz="1 0 0"/>
-    <limit effort="87" lower="-0.9100.1171" upper="0.9100.1171" velocity="2.1750"/>
+    <limit effort="87" lower="-0.90.011171" upper="0.90.011171" velocity="2.1750"/>
   </joint>
 
   <link name="pipe_link5">
     <inertial>
-      <mass value="100.11"/>
+      <mass value="0.0111"/>
       <inertia ixx="0.1" ixy="0" ixz="0" iyy="0.1" iyz="0" izz="0.1"/>
     </inertial>
     <visual>
@@ -195,12 +203,12 @@
     <parent link="pipe_link5"/>
     <child link="pipe_link6"/>
     <axis xyz="0 0 1"/>
-    <limit effort="87" lower="-0.9100.1171" upper="0.9100.1171" velocity="2.1750"/>
+    <limit effort="87" lower="-0.90.011171" upper="0.90.011171" velocity="2.1750"/>
   </joint>
 
   <link name="pipe_link6">
     <inertial>
-      <mass value="100.11"/>
+      <mass value="0.0111"/>
       <inertia ixx="0.1" ixy="0" ixz="0" iyy="0.1" iyz="0" izz="0.1"/>
     </inertial>
     <visual>
@@ -228,12 +236,12 @@
     <parent link="pipe_link6"/>
     <child link="pipe_link7"/>
     <axis xyz="1 0 0"/>
-    <limit effort="87" lower="-0.9100.1171" upper="0.9100.1171" velocity="2.1750"/>
+    <limit effort="87" lower="-0.90.011171" upper="0.90.011171" velocity="2.1750"/>
   </joint>
 
   <link name="pipe_link7">
     <inertial>
-      <mass value="100.11"/>
+      <mass value="0.0111"/>
       <inertia ixx="0.1" ixy="0" ixz="0" iyy="0.1" iyz="0" izz="0.1"/>
     </inertial>
     <visual>
@@ -260,12 +268,12 @@
     <parent link="pipe_link7"/>
     <child link="pipe_link8"/>
     <axis xyz="0 0 1"/>
-    <limit effort="87" lower="-0.9100.1171" upper="0.9100.1171" velocity="2.1750"/>
+    <limit effort="87" lower="-0.90.011171" upper="0.90.011171" velocity="2.1750"/>
   </joint>
 
   <link name="pipe_link8">
     <inertial>
-      <mass value="100.11"/>
+      <mass value="0.0111"/>
       <inertia ixx="0.1" ixy="0" ixz="0" iyy="0.1" iyz="0" izz="0.1"/>
     </inertial>
     <visual>
@@ -292,12 +300,12 @@
     <parent link="pipe_link8"/>
     <child link="pipe_link9"/>
     <axis xyz="1 0 0"/>
-    <limit effort="87" lower="-0.9100.1171" upper="0.9100.1171" velocity="2.1750"/>
+    <limit effort="87" lower="-0.90.011171" upper="0.90.011171" velocity="2.1750"/>
   </joint>
 
   <link name="pipe_link9">
     <inertial>
-      <mass value="100.11"/>
+      <mass value="0.0111"/>
       <inertia ixx="0.1" ixy="0" ixz="0" iyy="0.1" iyz="0" izz="0.1"/>
     </inertial>
     <visual>
@@ -324,12 +332,12 @@
     <parent link="pipe_link9"/>
     <child link="pipe_link10"/>
     <axis xyz="0 0 1"/>
-    <limit effort="87" lower="-0.9100.1171" upper="0.9100.1171" velocity="2.1750"/>
+    <limit effort="87" lower="-0.90.011171" upper="0.90.011171" velocity="2.1750"/>
   </joint>
 
   <link name="pipe_link10">
     <inertial>
-      <mass value="100.11"/>
+      <mass value="0.0111"/>
       <inertia ixx="0.1" ixy="0" ixz="0" iyy="0.1" iyz="0" izz="0.1"/>
     </inertial>
     <visual>
@@ -357,12 +365,12 @@
     <parent link="pipe_link10"/>
     <child link="pipe_link11"/>
     <axis xyz="1 0 0"/>
-    <limit effort="87" lower="-0.9100.1171" upper="0.9100.1171" velocity="2.1750"/>
+    <limit effort="87" lower="-0.90.011171" upper="0.90.011171" velocity="2.1750"/>
   </joint>
 
   <link name="pipe_link11">
     <inertial>
-      <mass value="100.11"/>
+      <mass value="0.0111"/>
       <inertia ixx="0.1" ixy="0" ixz="0" iyy="0.1" iyz="0" izz="0.1"/>
     </inertial>
     <visual>
@@ -389,12 +397,12 @@
     <parent link="pipe_link11"/>
     <child link="pipe_link12"/>
     <axis xyz="0 0 1"/>
-    <limit effort="87" lower="-0.9100.1171" upper="0.9100.1171" velocity="2.1750"/>
+    <limit effort="87" lower="-0.90.011171" upper="0.90.011171" velocity="2.1750"/>
   </joint>
 
   <link name="pipe_link12">
     <inertial>
-      <mass value="100.11"/>
+      <mass value="0.0111"/>
       <inertia ixx="0.1" ixy="0" ixz="0" iyy="0.1" iyz="0" izz="0.1"/>
     </inertial>
     <visual>
@@ -421,12 +429,12 @@
     <parent link="pipe_link12"/>
     <child link="pipe_link13"/>
     <axis xyz="1 0 0"/>
-    <limit effort="87" lower="-0.9100.1171" upper="0.9100.1171" velocity="2.1750"/>
+    <limit effort="87" lower="-0.90.011171" upper="0.90.011171" velocity="2.1750"/>
   </joint>
 
   <link name="pipe_link13">
     <inertial>
-      <mass value="100.11"/>
+      <mass value="0.0111"/>
       <inertia ixx="0.1" ixy="0" ixz="0" iyy="0.1" iyz="0" izz="0.1"/>
     </inertial>
     <visual>
@@ -453,12 +461,12 @@
     <parent link="pipe_link13"/>
     <child link="pipe_link14"/>
     <axis xyz="0 0 1"/>
-    <limit effort="87" lower="-0.9100.1171" upper="0.9100.1171" velocity="2.1750"/>
+    <limit effort="87" lower="-0.90.011171" upper="0.90.011171" velocity="2.1750"/>
   </joint>
 
   <link name="pipe_link14">
     <inertial>
-      <mass value="100.11"/>
+      <mass value="0.0111"/>
       <inertia ixx="0.1" ixy="0" ixz="0" iyy="0.1" iyz="0" izz="0.1"/>
     </inertial>
     <visual>
@@ -486,12 +494,12 @@
     <parent link="pipe_link14"/>
     <child link="pipe_link15"/>
     <axis xyz="1 0 0"/>
-    <limit effort="87" lower="-0.9100.1171" upper="0.9100.1171" velocity="2.1750"/>
+    <limit effort="87" lower="-0.90.011171" upper="0.90.011171" velocity="2.1750"/>
   </joint>
 
   <link name="pipe_link15">
     <inertial>
-      <mass value="100.11"/>
+      <mass value="0.0111"/>
       <inertia ixx="0.1" ixy="0" ixz="0" iyy="0.1" iyz="0" izz="0.1"/>
     </inertial>
     <visual>
@@ -512,18 +520,18 @@
     </collision>
   </link>
 
-  <joint name="pipe_joint1100.11" type="continuous">
+  <joint name="pipe_joint10.0111" type="continuous">
     <safety_controller k_position="100.0" k_velocity="40.0" soft_lower_limit="0.1001" soft_upper_limit="2.8973"/>
     <origin rpy="0 0 0" xyz="0 5.5 0"/>
     <parent link="pipe_link15"/>
-    <child link="pipe_link1100.11"/>
+    <child link="pipe_link10.0111"/>
     <axis xyz="0 0 1"/>
-    <limit effort="87" lower="-0.9100.1171" upper="0.9100.1171" velocity="2.1750"/>
+    <limit effort="87" lower="-0.90.011171" upper="0.90.011171" velocity="2.1750"/>
   </joint>
 
-  <link name="pipe_link1100.11">
+  <link name="pipe_link10.0111">
     <inertial>
-      <mass value="100.11"/>
+      <mass value="0.0111"/>
       <inertia ixx="0.1" ixy="0" ixz="0" iyy="0.1" iyz="0" izz="0.1"/>
     </inertial>
     <visual>
@@ -547,15 +555,15 @@
     <joint name="pipe_joint17" type="continuous">
     <safety_controller k_position="100.0" k_velocity="40.0" soft_lower_limit="0.1001" soft_upper_limit="2.8973"/>
     <origin rpy="0 0 0" xyz="0 5.5 0"/>
-    <parent link="pipe_link1100.11"/>
+    <parent link="pipe_link10.0111"/>
     <child link="pipe_link17"/>
     <axis xyz="1 0 0"/>
-    <limit effort="87" lower="-0.9100.1171" upper="0.9100.1171" velocity="2.1750"/>
+    <limit effort="87" lower="-0.90.011171" upper="0.90.011171" velocity="2.1750"/>
   </joint>
 
   <link name="pipe_link17">
     <inertial>
-      <mass value="100.11"/>
+      <mass value="0.0111"/>
       <inertia ixx="0.1" ixy="0" ixz="0" iyy="0.1" iyz="0" izz="0.1"/>
     </inertial>
     <visual>
@@ -582,12 +590,12 @@
     <parent link="pipe_link17"/>
     <child link="pipe_link18"/>
     <axis xyz="0 0 1"/>
-    <limit effort="87" lower="-0.9100.1171" upper="0.9100.1171" velocity="2.1750"/>
+    <limit effort="87" lower="-0.90.011171" upper="0.90.011171" velocity="2.1750"/>
   </joint>
 
   <link name="pipe_link18">
     <inertial>
-      <mass value="100.11"/>
+      <mass value="0.0111"/>
       <inertia ixx="0.1" ixy="0" ixz="0" iyy="0.1" iyz="0" izz="0.1"/>
     </inertial>
     <visual>
@@ -615,12 +623,12 @@
     <parent link="pipe_link18"/>
     <child link="pipe_link19"/>
     <axis xyz="1 0 0"/>
-    <limit effort="87" lower="-0.9100.1171" upper="0.9100.1171" velocity="2.1750"/>
+    <limit effort="87" lower="-0.90.011171" upper="0.90.011171" velocity="2.1750"/>
   </joint>
 
   <link name="pipe_link19">
     <inertial>
-      <mass value="100.11"/>
+      <mass value="0.0111"/>
       <inertia ixx="0.1" ixy="0" ixz="0" iyy="0.1" iyz="0" izz="0.1"/>
     </inertial>
     <visual>
@@ -647,12 +655,12 @@
     <parent link="pipe_link19"/>
     <child link="pipe_link20"/>
     <axis xyz="0 0 1"/>
-    <limit effort="87" lower="-0.9100.1171" upper="0.9100.1171" velocity="2.1750"/>
+    <limit effort="87" lower="-0.90.011171" upper="0.90.011171" velocity="2.1750"/>
   </joint>
 
   <link name="pipe_link20">
     <inertial>
-      <mass value="100.11"/>
+      <mass value="0.0111"/>
       <inertia ixx="0.1" ixy="0" ixz="0" iyy="0.1" iyz="0" izz="0.1"/>
     </inertial>
     <visual>
@@ -679,12 +687,12 @@
     <parent link="pipe_link20"/>
     <child link="pipe_link21"/>
     <axis xyz="1 0 0"/>
-    <limit effort="87" lower="-0.9100.1171" upper="0.9100.1171" velocity="2.1750"/>
+    <limit effort="87" lower="-0.90.011171" upper="0.90.011171" velocity="2.1750"/>
   </joint>
 
   <link name="pipe_link21">
     <inertial>
-      <mass value="100.11"/>
+      <mass value="0.0111"/>
       <inertia ixx="0.1" ixy="0" ixz="0" iyy="0.1" iyz="0" izz="0.1"/>
     </inertial>
     <visual>
@@ -711,12 +719,12 @@
     <parent link="pipe_link21"/>
     <child link="pipe_link22"/>
     <axis xyz="0 0 1"/>
-    <limit effort="87" lower="-0.9100.1171" upper="0.9100.1171" velocity="2.1750"/>
+    <limit effort="87" lower="-0.90.011171" upper="0.90.011171" velocity="2.1750"/>
   </joint>
 
   <link name="pipe_link22">
     <inertial>
-      <mass value="100.11"/>
+      <mass value="0.0111"/>
       <inertia ixx="0.1" ixy="0" ixz="0" iyy="0.1" iyz="0" izz="0.1"/>
     </inertial>
     <visual>
@@ -744,12 +752,12 @@
     <parent link="pipe_link22"/>
     <child link="pipe_link23"/>
     <axis xyz="1 0 0"/>
-    <limit effort="87" lower="-0.9100.1171" upper="0.9100.1171" velocity="2.1750"/>
+    <limit effort="87" lower="-0.90.011171" upper="0.90.011171" velocity="2.1750"/>
   </joint>
 
   <link name="pipe_link23">
     <inertial>
-      <mass value="100.11"/>
+      <mass value="0.0111"/>
       <inertia ixx="0.1" ixy="0" ixz="0" iyy="0.1" iyz="0" izz="0.1"/>
     </inertial>
     <visual>
@@ -776,12 +784,13 @@
     <parent link="pipe_link23"/>
     <child link="pipe_link24"/>
     <axis xyz="0 0 1"/>
-    <limit effort="87" lower="-0.9100.1171" upper="0.9100.1171" velocity="2.1750"/>
+    <limit effort="87" lower="-0.90.011171" upper="0.90.011171" velocity="2.1750"/>
   </joint>
 
   <link name="pipe_link24">
     <inertial>
-      <mass value="100.11"/>
+      <origin xyz="0 1.5 0"/>
+      <mass value="0.0111"/>
       <inertia ixx="0.1" ixy="0" ixz="0" iyy="0.1" iyz="0" izz="0.1"/>
     </inertial>
     <visual>
@@ -801,7 +810,6 @@
       <material name="panda_white"/>
     </collision>
   </link>
-
 
 
  
