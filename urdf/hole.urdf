@@ -1,0 +1,26 @@
+<robot name="base">
+
+	<link name="base">
+		<inertial>
+			<mass value="0.1"/>
+			<inertia ixx="0.1" ixy="0" ixz="0" iyy="0.1" iyz="0" izz="0.1"/>
+		</inertial>
+		<visual>
+			<origin xyz="0 0 0"/>
+	      	<geometry>
+	        	<mesh filename="../obj/cylinder_base.obj"/>
+	      	</geometry>
+      		<material name="panda_white">
+      			<color rgba="0.91 0.91 0.91 1."/>
+  			</material>
+		</visual>
+		<collision concave="yes">
+      		<origin xyz="0 0 0"/>
+      		<geometry>
+        		<mesh filename="../obj/cylinder_base.obj"/>
+      		</geometry>
+      		<material name="panda_white"/>
+		</collision>
+	</link>
+
+</robot>
