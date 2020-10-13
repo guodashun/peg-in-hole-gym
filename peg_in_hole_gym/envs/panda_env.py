@@ -81,8 +81,8 @@ class PandaEnv(gym.Env):
         # p.configureDebugVisualizer(p.COV_ENABLE_SINGLE_STEP_RENDERING)
 
         # calculate target pos and dir
-        # grasp_joint_idx = random.randint(0, self.object_joints_num)
-        grasp_joint_idx = 23
+        grasp_joint_idx = random.randint(0, self.object_joints_num)
+        # grasp_joint_idx = 23
 
         # start grasping
         while(self.cur_state != 999):
@@ -223,7 +223,8 @@ class PandaEnv(gym.Env):
 
         # soft pipe init
         state_object=[random.uniform(0.5,0.8), random.uniform(0.0, -0.4), 0.0]# xyz
-        self.objectUid=p.loadURDF("urdf/pipe.urdf",basePosition=state_object, 
+        self.objectUid=p.loadURDF(os.path.join(os.path.dirname(os.path.realpath(__file__)),"assets/urdf/pipe.urdf"),
+                                  basePosition=state_object, 
 			                      useFixedBase=0, flags=p.URDF_USE_SELF_COLLISION, globalScaling=0.01)
         self.object_joints_num = p.getNumJoints(self.objectUid)
         for i in random.sample(range(self.object_joints_num), random.randint(5, self.object_joints_num)):
@@ -231,7 +232,8 @@ class PandaEnv(gym.Env):
 
         # hole init
         self.hole_state = [0.5, 0.2, 0.3]
-        self.holeUid = p.loadURDF("urdf/hole.urdf", basePosition=self.hole_state,
+        self.holeUid = p.loadURDF(os.path.join(os.path.dirname(os.path.realpath(__file__)),"assets/urdf/hole.urdf"), 
+                                  basePosition=self.hole_state,
                                   useFixedBase=1, globalScaling=0.013)
 
         state_robot=p.getLinkState(self.pandaUid,11)[0]

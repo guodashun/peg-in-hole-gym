@@ -1,6 +1,7 @@
 # py_cache
 __pycache/
 *.pyc
+*.egg-info
 
 # VS Code
 .vscode/
