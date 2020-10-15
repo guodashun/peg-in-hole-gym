@@ -37,12 +37,13 @@ class PandaEnv(gym.Env):
 
         # grasp state init
         self.dv = 0.05
-        self.t = 0.
         self.timeStep = 1./240
         self.cur_state = 0
+        self.last_state = 0
         self.state_t = 0
-        self.stateDurations = [0.25,3,2,1,1.5,1.5,0.5,0.25,0.25,0.25]
+        self.stateDurations = [0.25,1.5,1.5,1,1.5,1.5,0.5,0.25,0.25,0.25]
         self.done = False
+        self.grasp_img = [0,0,0]
         self.reset()
 
     # 机械臂根据action执行动作，通过calculateInverseKinematics解算关节位置
@@ -66,7 +67,7 @@ class PandaEnv(gym.Env):
         p.stepSimulation()
 
         state_object,_=p.getBasePositionAndOrientation(self.objectUid)
-        state_robot=p.getLinkState(self.pandaUid,11)[0]
+        state_robot=p.getLinkState(self.pandaUid,self.pandaEndEffectorIndex)[0]
         state_fingers=(p.getJointState(self.pandaUid,9)[0],p.getJointState(self.pandaUid,10)[0])
 
         # need test
@@ -79,40 +80,57 @@ class PandaEnv(gym.Env):
 
     # 随机抓取软管的关节，并返回抓取的位置及可行性
     def random_grasp(self):
-        # p.configureDebugVisualizer(p.COV_ENABLE_SINGLE_STEP_RENDERING)
+        # soft pipe init
+        state_object=[random.uniform(-0.2, 0.2), random.uniform(-0.4, -0.6), 0.11]# xyz
+        self.objectUid=p.loadURDF(os.path.join(os.path.dirname(os.path.realpath(__file__)),"assets/urdf/pipe.urdf"),
+                                  basePosition=state_object, baseOrientation=p.getQuaternionFromEuler([0, 0, 0]),
+			                      useFixedBase=0, flags=p.URDF_USE_SELF_COLLISION, globalScaling=0.01)
+        self.object_joints_num = p.getNumJoints(self.objectUid)
+        for i in random.sample(range(self.object_joints_num), random.randint(5, self.object_joints_num)):
+            p.resetJointState(self.objectUid, i, random.uniform(0, math.pi / 3))
 
+        # hole init
+        self.hole_state = [0.5, -0.2, 0.2]
+        self.holeUid = p.loadURDF(os.path.join(os.path.dirname(os.path.realpath(__file__)),"assets/urdf/hole.urdf"), 
+                                  basePosition=self.hole_state, baseOrientation=p.getQuaternionFromEuler([0, 0, math.pi/2]),
+                                  useFixedBase=1, globalScaling=0.013)
+        
         # calculate target pos and dir
-        # grasp_joint_idx = random.randint(0, self.object_joints_num)
         grasp_joint_idx = random.choice([0,23])
-        random_vector = [1, 0, 0] # random.uniform(-0.5, 0.5)
+        random_vector = [0, random.uniform(-0.1, 0.1), 0]
+        
         # start grasping
-        while(self.done==False): # 
+        while(self.done==False): 
             time.sleep(1./240)
             p.stepSimulation()
-            self.render()
-            # p.resetDebugVisualizerCamera(cameraDistance=1.5,cameraYaw=0,
-            #                     cameraPitch=-40,cameraTargetPosition=p.getLinkState(self.pandaUid, self.pandaEndEffectorIndex)[0])
             # switch state
             self.update_state()
-            targetPos, targetOrn = p.getLinkState(self.objectUid, grasp_joint_idx)[0:2]
-            # origin_pos = targetPos
-            # targetPos = [targetPos[0] + random_vector[0], 
-            #              targetPos[1] + random_vector[1],
-            #              targetPos[2] + random_vector[2]]
-            # # rotate_orn = p.getEulerFromQuaternion(targetOrn)
-            # # rotate_orn = p.getQuaternionFromEuler([rotate_orn[0],
-            # #                                        rotate_orn[1],
-            # #                                        rotate_orn[2]])
-            # rotate_vector = self.rotate_vector(random_vector, targetOrn)
-            # targetPos = [targetPos[0] + rotate_vector[0], 
-            #              targetPos[1] + rotate_vector[1],
-            #              targetPos[2] + rotate_vector[2]]
-            # jointPos = p.getJointState(self.objectUid, grasp_joint_idx)[0:3]
-            # print("fuck", jointPos)
+            if self.last_state != self.cur_state:
+                # capture the grasp img
+                if self.cur_state == 2:
+                    self.grasp_img = self.render()
+                # create the constraint to make stable grasping
+                # if self.cur_state == 4:
+                #     p.createConstraint(self.pandaUid, 9, self.objectUid, grasp_joint_idx, p.JOINT_POINT2POINT)
+            rawPos, targetOrn = p.getLinkState(self.objectUid, grasp_joint_idx)[0:2]
 
-            # p.addUserDebugLine(jointPos, targetPos,lineColorRGB=[255,0,0], lineWidth=0.3, lifeTime=1.0)
+            # rotate_orn = p.getEulerFromQuaternion(targetOrn)
+            # # random_vector = [random_vector[0]*math.cos(rotate_orn[1])*math.cos(rotate_orn[2]),
+            # #                  random_vector[0]*math.cos(rotate_orn[1])*math.sin(rotate_orn[2]),
+            # #                  random_vector[0]*math.sin(rotate_orn[1])]
+            # rotate_orn = p.getQuaternionFromEuler([rotate_orn[0],
+            #                                        rotate_orn[1],
+            #                                        rotate_orn[2]])
+            rotate_vector = self.rotate_vector(random_vector, targetOrn)
+            # rotate_vector = random_vector
+            targetPos = [rawPos[0] + rotate_vector[0], 
+                         rawPos[1] + rotate_vector[1],
+                         rawPos[2] + rotate_vector[2]]
+            # jointPos = p.getJointState(self.objectUid, grasp_joint_idx)[0:3]
+
+            # p.addUserDebugLine(rawPos, targetPos,lineColorRGB=[255,0,0], lineWidth=3, lifeTime=1.0)
             self.grasp_process(self.cur_state, targetPos, targetOrn)
-            # self.render()
+            self.last_state = self.cur_state
 
         self.done = False
         pos, orn = p.getLinkState(self.objectUid, grasp_joint_idx)[0:2]
@@ -232,10 +250,16 @@ class PandaEnv(gym.Env):
         rotate_matrix = np.array([1-2*y*y-2*z*z, 2*x*y-2*z*w, 2*x*z+2*y*w,
                                   2*x*y+2*z*w, 1-2*x*x-2*z*z, 2*y*z-2*x*w,
                                   2*x*z-2*y*w, 2*y*z+2*x*w, 1-2*x*x-2*y*y]).reshape(3,3)
-        vec = rotate_matrix @ vec @ np.linalg.inv(rotate_matrix)
+        vec = rotate_matrix @ vec # @ np.linalg.inv(rotate_matrix)
         # vec =  np.linalg.inv(rotate_matrix) @ vec
 
         return vec.tolist()
+
+    def random_fly(self):
+        p.setAdditionalSearchPath('/home/luckky/Amicelli_800_tex')
+        objuid = p.loadURDF('Amicelli_800_tex.urdf', globalScaling=10)
+        p.resetBaseVelocity(objuid, [0.1,0,10])
+
     
     def reset(self):
         p.resetSimulation()
@@ -250,21 +274,6 @@ class PandaEnv(gym.Env):
         for i in range(7):
             p.resetJointState(self.pandaUid,i,rest_poses[i])
         tableUid=p.loadURDF("table/table.urdf",basePosition=[0.0,-0.5,-1.3], baseOrientation=p.getQuaternionFromEuler([0, 0, math.pi/2]), globalScaling=2)
-
-        # soft pipe init
-        state_object=[random.uniform(-0.2, 0.2), random.uniform(-0.4, -0.6), 0.11]# xyz
-        self.objectUid=p.loadURDF(os.path.join(os.path.dirname(os.path.realpath(__file__)),"assets/urdf/pipe.urdf"),
-                                  basePosition=state_object, baseOrientation=p.getQuaternionFromEuler([0, 0, 0]),
-			                      useFixedBase=0, flags=p.URDF_USE_SELF_COLLISION, globalScaling=0.01)
-        self.object_joints_num = p.getNumJoints(self.objectUid)
-        for i in random.sample(range(self.object_joints_num), random.randint(5, self.object_joints_num)):
-            p.resetJointState(self.objectUid, i, random.uniform(0, math.pi / 3))
-
-        # hole init
-        self.hole_state = [0.5, -0.2, 0.2]
-        self.holeUid = p.loadURDF(os.path.join(os.path.dirname(os.path.realpath(__file__)),"assets/urdf/hole.urdf"), 
-                                  basePosition=self.hole_state, baseOrientation=p.getQuaternionFromEuler([0, 0, math.pi/2]),
-                                  useFixedBase=1, globalScaling=0.013)
 
         state_robot=p.getLinkState(self.pandaUid,11)[0]
         state_fingers=(p.getJointState(self.pandaUid,9)[0],p.getJointState(self.pandaUid,10)[0])
