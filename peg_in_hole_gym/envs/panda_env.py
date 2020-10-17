@@ -15,7 +15,9 @@ from gym.utils import seeding
 
 class PandaEnv(gym.Env):
     metadata = {'render.modes':['human']}
-    def __init__(self, client, is_test=False):
+    def __init__(self, client, task='peg-in-hole', is_test=False):
+        assert task in ['peg-in-hole', 'random-fly']
+        self.task = task
         p.connect(client)
         p.resetDebugVisualizerCamera(cameraDistance=1.5,cameraYaw=0,
                                      cameraPitch=-40,cameraTargetPosition=[0.55,-0.35,0.2])
@@ -126,7 +128,7 @@ class PandaEnv(gym.Env):
         if state == 2:
             jointPoses = p.calculateInverseKinematics(
                     self.pandaUid, self.pandaEndEffectorIndex, 
-                    targetPos+np.array([0,0,0]), p.getQuaternionFromEuler([0,-math.pi,math.pi/2.+targetOrn[2]])
+                    targetPos+np.array([0,0,-0.01]), p.getQuaternionFromEuler([0,-math.pi,math.pi/2.+targetOrn[2]])
                 )
             for i in range(self.pandaNumDofs):
                 p.setJointMotorControl2(self.pandaUid, i, p.POSITION_CONTROL, jointPoses[i], force=5.*240.)
@@ -184,7 +186,8 @@ class PandaEnv(gym.Env):
 
         # reset
         if state == 9:
-            self.done = True
+            if not self.is_test:   
+                self.done = True
 
 
     def update_state(self):
@@ -201,7 +204,10 @@ class PandaEnv(gym.Env):
                 for k,v in keys.items():
                     if v & p.KEY_WAS_TRIGGERED:
                         if (k==ord('r')):
-                            self.reset_peg_in_hole()
+                            if self.task == 'peg-in-hole':
+                                self.reset_peg_in_hole()
+                            if self.task == 'random-fly':
+                                self.reset_fly()
 
     def smooth_vel(self, cur, tar):
         res = []
@@ -235,27 +241,6 @@ class PandaEnv(gym.Env):
         self.objectUid = p.loadURDF('Amicelli_800_tex.urdf',basePosition=object_pos, globalScaling=5)
         p.resetBaseVelocity(self.objectUid, [0.1,0,10])
 
-    
-    def reset(self):
-        p.resetSimulation()
-        self.done = False
-        p.configureDebugVisualizer(p.COV_ENABLE_RENDERING,0)
-        self.gravity = [0,0,-9.8]
-        p.setGravity(self.gravity[0], self.gravity[1], self.gravity[2])
-
-        p.setAdditionalSearchPath(pybullet_data.getDataPath())
-        rest_poses=[0,-0.215,-math.pi/3,-2.57,0,2.356,2.356,0.08,0.08]
-        self.pandaUid=p.loadURDF("franka_panda/panda.urdf",baseOrientation=p.getQuaternionFromEuler([0, 0, -math.pi/2]),useFixedBase=True)
-        for i in range(7):
-            p.resetJointState(self.pandaUid,i,rest_poses[i])
-        tableUid=p.loadURDF("table/table.urdf",basePosition=[0.0,-0.5,-1.3], baseOrientation=p.getQuaternionFromEuler([0, 0, math.pi/2]), globalScaling=2)
-
-        state_robot=p.getLinkState(self.pandaUid,11)[0]
-        state_fingers=(p.getJointState(self.pandaUid,9)[0],p.getJointState(self.pandaUid,10)[0])
-        observation=state_robot+state_fingers
-        p.configureDebugVisualizer(p.COV_ENABLE_RENDERING,1)
-        return observation
-
     def reset_peg_in_hole(self):
         self.reset()
         # soft pipe init
@@ -273,21 +258,17 @@ class PandaEnv(gym.Env):
         self.hole_state = [0.5, -0.2, 0.2]
         self.holeUid = p.loadURDF(os.path.join(os.path.dirname(os.path.realpath(__file__)),"assets/urdf/hole.urdf"), 
                                   basePosition=self.hole_state, baseOrientation=p.getQuaternionFromEuler([0, 0, math.pi/2]),
-                                  useFixedBase=1, globalScaling=0.013)
+                                  useFixedBase=1, globalScaling=0.016)
         
         # grasp state init
         self.dv = 0.05
-        self.timeStep = 1./240
-        self.cur_state = 0
-        self.last_state = 0
-        self.state_t = 0
-        self.stateDurations = [0.25,2,2,1,1.5,1.5,0.5,0.25,0.25,0.25]
         self.done = False
         self.grasp_img = [0,0,0]
+        self.stateDurations = [0.25,2,2,1,1.5,1.5,0.5,0.25,0.25,0.25]
 
         # calculate target pos and dir
         grasp_joint_idx = random.choice([0,23])
-        random_vector = [0, random.uniform(-0.1, 0.1), 0]
+        random_vector = [0, random.uniform(-0.05, 0.05), 0]
 
         return grasp_joint_idx, random_vector
 
@@ -299,10 +280,10 @@ class PandaEnv(gym.Env):
         # init flying object
         base_pos = self.random_pos_in_panda_space()
         x  = random.uniform(4,6) * random.choice([-1, 1])
-        vx = random.uniform(2,3) * (-1. if x>0 else 1.)
+        vx = random.uniform(4,6) * (-1. if x>0 else 1.)
         t  = abs((base_pos[0] - x) / vx)
-        vy = random.uniform(2,3) * random.choice([-1, 1])
-        vz = random.randint(10,20)
+        vy = random.uniform(4,6) * random.choice([-1, 1])
+        vz = random.randint(0,10)
         y  = base_pos[1] - vy * t
         z  = base_pos[2] - (vz * t +  (self.gravity[2]) * t*t / 2)
         object_pos = [x, y, z]
@@ -324,7 +305,6 @@ class PandaEnv(gym.Env):
         x = random.uniform(-length*length, length*length)
         y = math.sqrt(random.uniform(0, length*length-x*x))*random.choice([-1,1])
         z = math.sqrt(length*length - x*x - y*y) + 0.2
-        print("basepose", x,y,z)
         return [x,y,z]
 
     # 神经网络输入图像信息来进行训练
@@ -348,6 +328,32 @@ class PandaEnv(gym.Env):
         rgb_array=np.reshape(rgb_array,(720,960,4))
         rgb_array=rgb_array[:,:,:3]
         return rgb_array
+
+    def reset(self):
+        p.resetSimulation()
+        self.done = False
+        p.configureDebugVisualizer(p.COV_ENABLE_RENDERING,0)
+        self.gravity = [0,0,-9.8]
+        p.setGravity(self.gravity[0], self.gravity[1], self.gravity[2])
+
+        p.setAdditionalSearchPath(pybullet_data.getDataPath())
+        rest_poses=[0,-0.215,-math.pi/3,-2.57,0,2.356,2.356,0.08,0.08]
+        self.pandaUid=p.loadURDF("franka_panda/panda.urdf",baseOrientation=p.getQuaternionFromEuler([0, 0, -math.pi/2]),useFixedBase=True)
+        for i in range(7):
+            p.resetJointState(self.pandaUid,i,rest_poses[i])
+        tableUid=p.loadURDF("table/table.urdf",basePosition=[0.0,-0.5,-1.3], baseOrientation=p.getQuaternionFromEuler([0, 0, math.pi/2]), globalScaling=2)
+
+        self.timeStep = 1./240
+        self.cur_state = 0
+        self.last_state = 0
+        self.state_t = 0
+        self.stateDurations = [0.25]
+
+        state_robot=p.getLinkState(self.pandaUid,11)[0]
+        state_fingers=(p.getJointState(self.pandaUid,9)[0],p.getJointState(self.pandaUid,10)[0])
+        observation=state_robot+state_fingers
+        p.configureDebugVisualizer(p.COV_ENABLE_RENDERING,1)
+        return observation
 
     def close(self):
         p.disconnect()

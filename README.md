@@ -5,7 +5,12 @@ gym env for multi-task simulation with Panda robotic arm engined by pybullet
 ## Task List
 
 - peg-in-hole
+
+  ![peg-in-hole](./img/peg-in-hole.gif)
+
 - random-fly
+
+  ![random-fly](./img/random-fly.gif)
 
 ## Installation
 
