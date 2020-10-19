@@ -35,50 +35,46 @@ class PandaEnv(gym.Env):
         self.reset()
 
     # 机械臂根据action执行动作，通过calculateInverseKinematics解算关节位置
-    # observation,info分别表示机械臂、目标物体的位置
     def step(self,action):
-        p.configureDebugVisualizer(p.COV_ENABLE_SINGLE_STEP_RENDERING)
-        orientation=p.getQuaternionFromEuler([0.,-math.pi,math.pi/2.])
-        dv=0.3
-        dx=action[0]*dv
-        dy=action[1]*dv
-        dz=action[2]*dv
-        fingers=action[3]
+        # excute
+        if self.task != 'peg-in-hole':
+            p.configureDebugVisualizer(p.COV_ENABLE_SINGLE_STEP_RENDERING)
+            orientation=p.getQuaternionFromEuler([0.,-math.pi,math.pi/2.])
+            dv=0.3
+            dx=action[0]*dv
+            dy=action[1]*dv
+            dz=action[2]*dv
+            fingers=action[3]
 
-        currentPose=p.getLinkState(self.pandaUid,11)
-        currentPosition=currentPose[0]
-        newPosition=[currentPosition[0]+dx,
-                     currentPosition[1]+dy,
-                     currentPosition[2]+dz]
-        jointPoses=p.calculateInverseKinematics(self.pandaUid,self.pandaEndEffectorIndex,newPosition,orientation)[0:7]
-        p.setJointMotorControlArray(self.pandaUid,list(range(self.pandaNumDofs))+[9,10],p.POSITION_CONTROL,list(jointPoses)+2*[fingers])
-        p.stepSimulation()
+            currentPose=p.getLinkState(self.pandaUid,11)
+            currentPosition=currentPose[0]
+            newPosition=[currentPosition[0]+dx,
+                        currentPosition[1]+dy,
+                        currentPosition[2]+dz]
+            jointPoses=p.calculateInverseKinematics(self.pandaUid,self.pandaEndEffectorIndex,newPosition,orientation)[0:7]
+            p.setJointMotorControlArray(self.pandaUid,list(range(self.pandaNumDofs))+[9,10],p.POSITION_CONTROL,list(jointPoses)+2*[fingers])
+            p.stepSimulation()
 
-        state_object,_=p.getBasePositionAndOrientation(self.objectUid)
-        state_robot=p.getLinkState(self.pandaUid,self.pandaEndEffectorIndex)[0]
-        state_fingers=(p.getJointState(self.pandaUid,9)[0],p.getJointState(self.pandaUid,10)[0])
-
-        # need test
+        # observation
+        observation = []
         reward = 0
-        done = False
-
-        info=state_object
-        observation=state_robot+state_fingers
-        return observation,reward,done,info
+        info = []
+        if self.task == 'peg-in-hole':
+            self.random_grasp()
+        if self.task == 'random-fly':
+            self.random_fly()
+        return observation, reward, info
 
     # peg-in-hole scene
     def random_grasp(self):
-        # reset
-        grasp_joint_idx, random_vector = self.reset_peg_in_hole()
-
         # start grasping
         while(self.done==False): 
             # switch state
             self.update_state()
 
             # calculate random grasp pos
-            rawPos, targetOrn = p.getLinkState(self.objectUid, grasp_joint_idx)[0:2]
-            rotate_vector = self.rotate_vector(random_vector, targetOrn)
+            rawPos, targetOrn = p.getLinkState(self.objectUid, self.grasp_joint_idx)[0:2]
+            rotate_vector = self.rotate_vector(self.random_vector, targetOrn)
             targetPos = [rawPos[0] + rotate_vector[0], 
                          rawPos[1] + rotate_vector[1],
                          rawPos[2] + rotate_vector[2]]
@@ -87,10 +83,6 @@ class PandaEnv(gym.Env):
                 # capture the grasp img
                 if self.cur_state == 2:
                     self.grasp_img = self.render()
-                # create the constraint to make stable grasping
-                # if self.cur_state == 4:
-                #     left_cons = p.createConstraint(self.pandaUid, 9, self.objectUid, grasp_joint_idx, p.JOINT_POINT2POINT, [0.,0.,0.], [0.05,0.,0.], random_vector)
-                #     right_cons = p.createConstraint(self.pandaUid, 10, self.objectUid, grasp_joint_idx, p.JOINT_POINT2POINT, [0.,0.,0.], [0.05,0.,0.], random_vector)
 
             # p.addUserDebugLine(rawPos, targetPos,lineColorRGB=[255,0,0], lineWidth=3, lifeTime=1.0)
             self.grasp_process(self.cur_state, targetPos, targetOrn)
@@ -99,10 +91,22 @@ class PandaEnv(gym.Env):
             self.last_state = self.cur_state
 
         self.done = False
-        pos, orn = p.getLinkState(self.objectUid, grasp_joint_idx)[0:2]
-        q = 1. if 1 else 0.
+        # projection on x-y plain
+        pos = p.getLinkState(self.objectUid, self.grasp_joint_idx)[0]
+        pos = [pos[0], pos[1]]
+        cos_o = pos[1]/pos[0]
+        sin_o = math.sqrt(1-cos_o*cos_o)
+        width = 0.2
+        threshold = 0.05 # test result
+        q = 1. if np.linalg.norm(np.array(p.getLinkState(self.objectUid, self.grasp_joint_idx)[0])-
+                                 np.array(p.getBasePositionAndOrientation(self.holeUid)[0])) < threshold \
+               else 0.
+        # print("rawPos", p.getLinkState(self.objectUid, self.grasp_joint_idx)[0], "holePos", p.getBasePositionAndOrientation(self.holeUid)[0],
+        #       "result",np.linalg.norm(np.array(p.getLinkState(self.objectUid, self.grasp_joint_idx)[0])-
+        #                          np.array(p.getBasePositionAndOrientation(self.holeUid)[0])),
+        #       "q", q)
+        return pos, sin_o, cos_o, width, q
 
-        return pos, orn, 0.2
 
     def grasp_process(self, state, targetPos, targetOrn):
         currentPos = p.getLinkState(self.pandaUid, self.pandaEndEffectorIndex)[0]
@@ -185,9 +189,8 @@ class PandaEnv(gym.Env):
                 p.setJointMotorControl2(self.pandaUid, i, p.POSITION_CONTROL, jointPoses[i], force=5.*240.)
 
         # reset
-        if state == 9:
-            if not self.is_test:   
-                self.done = True
+        if state == 9: 
+            self.done = True
 
 
     def update_state(self):
@@ -204,10 +207,7 @@ class PandaEnv(gym.Env):
                 for k,v in keys.items():
                     if v & p.KEY_WAS_TRIGGERED:
                         if (k==ord('r')):
-                            if self.task == 'peg-in-hole':
-                                self.reset_peg_in_hole()
-                            if self.task == 'random-fly':
-                                self.reset_fly()
+                            self.reset()
 
     def smooth_vel(self, cur, tar):
         res = []
@@ -234,15 +234,10 @@ class PandaEnv(gym.Env):
         return vec.tolist()
 
     def random_fly(self):
-        p.resetDebugVisualizerCamera(cameraDistance=10,cameraYaw=0,
-                                     cameraPitch=-89,cameraTargetPosition=[0,0,0])
-        p.setAdditionalSearchPath('/home/luckky/Amicelli_800_tex')
-        object_pos = [5, 0 ,5]
-        self.objectUid = p.loadURDF('Amicelli_800_tex.urdf',basePosition=object_pos, globalScaling=5)
-        p.resetBaseVelocity(self.objectUid, [0.1,0,10])
+        pos = p.getBasePositionAndOrientation(self.objectUid)
+        return 
 
     def reset_peg_in_hole(self):
-        self.reset()
         # soft pipe init
         p.resetDebugVisualizerCamera(cameraDistance=1.5,cameraYaw=0,
                                      cameraPitch=-40,cameraTargetPosition=[0.55,-0.35,0.2])
@@ -267,13 +262,10 @@ class PandaEnv(gym.Env):
         self.stateDurations = [0.25,2,2,1,1.5,1.5,0.5,0.25,0.25,0.25]
 
         # calculate target pos and dir
-        grasp_joint_idx = random.choice([0,23])
-        random_vector = [0, random.uniform(-0.05, 0.05), 0]
-
-        return grasp_joint_idx, random_vector
+        self.grasp_joint_idx = random.choice([0,23])
+        self.random_vector = [0, random.uniform(-0.03, 0.03), 0]
 
     def reset_fly(self):
-        self.reset()
         p.resetDebugVisualizerCamera(cameraDistance=10,cameraYaw=0,
                                      cameraPitch=-89,cameraTargetPosition=[0,0,0])
         
@@ -353,6 +345,13 @@ class PandaEnv(gym.Env):
         state_fingers=(p.getJointState(self.pandaUid,9)[0],p.getJointState(self.pandaUid,10)[0])
         observation=state_robot+state_fingers
         p.configureDebugVisualizer(p.COV_ENABLE_RENDERING,1)
+
+        # reset task
+        if self.task == 'peg-in-hole':
+            self.reset_peg_in_hole()
+        if self.task == 'random-fly':
+            self.reset_fly()
+
         return observation
 
     def close(self):

@@ -6,6 +6,11 @@
 <robot name="pipe" xmlns:xacro="http://www.ros.org/wiki/xacro">
 
   <link name="pipe_link0">
+    <contact>
+      <lateral_friction value="100.0"/>
+      <spinning_friction value="0"/>
+      <rolling_friction value="0"/>
+    </contact>
     <inertial>
       <origin xyz='0 0 0'/>
       <mass value="0.00111"/>
@@ -40,7 +45,7 @@
 
   <link name="pipe_link1">
     <contact>
-      <lateral_friction value="40.0"/>
+      <lateral_friction value="100.0"/>
       <spinning_friction value="0"/>
       <rolling_friction value="0"/>
     </contact>
@@ -756,6 +761,11 @@
   </joint>
 
   <link name="pipe_link23">
+    <contact>
+      <lateral_friction value="100.0"/>
+      <spinning_friction value="0"/>
+      <rolling_friction value="0"/>
+    </contact>
     <inertial>
       <mass value="0.0111"/>
       <inertia ixx="0.1" ixy="0" ixz="0" iyy="0.1" iyz="0" izz="0.1"/>
@@ -788,6 +798,11 @@
   </joint>
 
   <link name="pipe_link24">
+    <contact>
+      <lateral_friction value="100.0"/>
+      <spinning_friction value="0"/>
+      <rolling_friction value="0"/>
+    </contact>
     <inertial>
       <origin xyz="0 1.5 0"/>
       <mass value="0.0111"/>
