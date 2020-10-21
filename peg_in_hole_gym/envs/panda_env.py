@@ -1,8 +1,5 @@
 import os
-from posix import POSIX_FADV_WILLNEED
-import posix
 import time
-from numpy.core.fromnumeric import trace
 import pybullet as p
 import pybullet_data
 import gym
@@ -10,7 +7,6 @@ import math
 import random
 import numpy as np
 from gym import spaces
-from gym.utils import seeding
 
 
 class PandaEnv(gym.Env):
@@ -18,11 +14,13 @@ class PandaEnv(gym.Env):
     def __init__(self, client, task='peg-in-hole', is_test=False):
         assert task in ['peg-in-hole', 'random-fly']
         self.task = task
-        p.connect(client)
+        self.client = client
+        p.connect(self.client)
         p.resetDebugVisualizerCamera(cameraDistance=1.5,cameraYaw=0,
                                      cameraPitch=-40,cameraTargetPosition=[0.55,-0.35,0.2])
         self.action_space=spaces.Box(np.array([-1]*4),np.array([1]*4)) # 末端3维信息+手指1维 (默认朝下)
-        self.observation_space=spaces.Box(np.array([-1]*5),np.array([1]*5)) # [夹爪1值 夹爪2值 末端位置x y z]
+        # self.observation_space=spaces.Box(np.array([-1]*5),np.array([1]*5)) # [夹爪1值 夹爪2值 末端位置x y z]
+        self.observation_space = spaces.Box(np.array([-30]*12), np.array([30]*12))
         
         # test_mode
         self.is_test = is_test
@@ -33,6 +31,7 @@ class PandaEnv(gym.Env):
         self.pandaNumDofs = 7
         
         self.reset()
+
 
     # 机械臂根据action执行动作，通过calculateInverseKinematics解算关节位置
     def step(self,action):
@@ -58,12 +57,15 @@ class PandaEnv(gym.Env):
         # observation
         observation = []
         reward = 0
-        info = []
+        done = self.done
+        info = {}
         if self.task == 'peg-in-hole':
-            self.random_grasp()
+            observation = self.grasp_img
+            info, reward = self.random_grasp()
         if self.task == 'random-fly':
-            self.random_fly()
-        return observation, reward, info
+            observation, reward = self.random_fly()
+        return observation, reward, done, info
+
 
     # peg-in-hole scene
     def random_grasp(self):
@@ -87,26 +89,27 @@ class PandaEnv(gym.Env):
             # p.addUserDebugLine(rawPos, targetPos,lineColorRGB=[255,0,0], lineWidth=3, lifeTime=1.0)
             self.grasp_process(self.cur_state, targetPos, targetOrn)
             p.stepSimulation()
-            time.sleep(1./240)
+            if self.client == p.GUI:
+                time.sleep(1./240)
             self.last_state = self.cur_state
 
         self.done = False
         # projection on x-y plain
         pos = p.getLinkState(self.objectUid, self.grasp_joint_idx)[0]
         pos = [pos[0], pos[1]]
-        cos_o = pos[1]/pos[0]
-        sin_o = math.sqrt(1-cos_o*cos_o)
+        cos_o = pos[0]/math.sqrt(pos[0]*pos[0] + pos[1]*pos[1])
+        sin_o = pos[1]/math.sqrt(pos[0]*pos[0] + pos[1]*pos[1])
         width = 0.2
         threshold = 0.05 # test result
         q = 1. if np.linalg.norm(np.array(p.getLinkState(self.objectUid, self.grasp_joint_idx)[0])-
                                  np.array(p.getBasePositionAndOrientation(self.holeUid)[0])) < threshold \
                else 0.
-        # print("rawPos", p.getLinkState(self.objectUid, self.grasp_joint_idx)[0], "holePos", p.getBasePositionAndOrientation(self.holeUid)[0],
-        #       "result",np.linalg.norm(np.array(p.getLinkState(self.objectUid, self.grasp_joint_idx)[0])-
-        #                          np.array(p.getBasePositionAndOrientation(self.holeUid)[0])),
-        #       "q", q)
-        return pos, sin_o, cos_o, width, q
-
+        if self.is_test:
+            print("rawPos", p.getLinkState(self.objectUid, self.grasp_joint_idx)[0], "holePos", p.getBasePositionAndOrientation(self.holeUid)[0],
+                "result",np.linalg.norm(np.array(p.getLinkState(self.objectUid, self.grasp_joint_idx)[0])-
+                                    np.array(p.getBasePositionAndOrientation(self.holeUid)[0])),
+                "q", q)
+        return [pos, sin_o, cos_o, width], q
 
     def grasp_process(self, state, targetPos, targetOrn):
         currentPos = p.getLinkState(self.pandaUid, self.pandaEndEffectorIndex)[0]
@@ -192,7 +195,6 @@ class PandaEnv(gym.Env):
         if state == 9: 
             self.done = True
 
-
     def update_state(self):
         self.state_t += self.timeStep
         if self.state_t > self.stateDurations[self.cur_state]:
@@ -233,10 +235,6 @@ class PandaEnv(gym.Env):
 
         return vec.tolist()
 
-    def random_fly(self):
-        pos = p.getBasePositionAndOrientation(self.objectUid)
-        return 
-
     def reset_peg_in_hole(self):
         # soft pipe init
         p.resetDebugVisualizerCamera(cameraDistance=1.5,cameraYaw=0,
@@ -265,6 +263,24 @@ class PandaEnv(gym.Env):
         self.grasp_joint_idx = random.choice([0,23])
         self.random_vector = [0, random.uniform(-0.03, 0.03), 0]
 
+
+    # random fly scene
+    def random_fly(self):
+        obj_pos = p.getBasePositionAndOrientation(self.objectUid)[0]
+        obj_vel = p.getBaseVelocity(self.objectUid)[0]
+        base_info = p.getLinkState(self.pandaUid,11,computeLinkVelocity=1)
+        base_pos = base_info[0]
+        base_vel = base_info[6]
+        if (abs(obj_vel[0]) + abs(obj_vel[1])) < 1 or \
+           obj_vel[2] < -20: # np.linalg.norm(np.array(obj_pos) - np.array(self.object_pos)) < 0.005
+            self.done = True
+        # print("ahaha",base_pos)
+        reward = 0.0
+        pos_bias = np.linalg.norm(np.array(base_pos) - np.array(obj_pos))
+        vel_bias = np.linalg.norm(np.array(base_vel) - np.array(obj_vel))
+        reward = -math.log(pos_bias) * 0.999 # - math.log(vel_bias) * 0.001
+        return list(obj_pos+ obj_vel+ base_pos+ base_vel), reward
+
     def reset_fly(self):
         p.resetDebugVisualizerCamera(cameraDistance=10,cameraYaw=0,
                                      cameraPitch=-89,cameraTargetPosition=[0,0,0])
@@ -278,16 +294,24 @@ class PandaEnv(gym.Env):
         vz = random.randint(0,10)
         y  = base_pos[1] - vy * t
         z  = base_pos[2] - (vz * t +  (self.gravity[2]) * t*t / 2)
-        object_pos = [x, y, z]
+        self.object_pos = [x, y, z]
         base_orn = p.getQuaternionFromEuler([random.uniform(-math.pi, math.pi) for i in range(3)])
         p.setAdditionalSearchPath(pybullet_data.getDataPath())
         self.objectUid = p.loadURDF(os.path.join(os.path.dirname(os.path.realpath(__file__)),"assets/urdf/Amicelli_800_tex.urdf"),
-                                    basePosition=object_pos, baseOrientation=base_orn,
+                                    basePosition=self.object_pos, baseOrientation=base_orn,
                                     globalScaling=5)
         p.changeDynamics(self.objectUid, -1, linearDamping=0, angularDamping=0)
         p.resetBaseVelocity(self.objectUid, [vx,vy,vz])
 
         p.addUserDebugLine([0,0,0], base_pos,lineColorRGB=[255,0,0], lineWidth=3)
+
+        obj_pos = p.getBasePositionAndOrientation(self.objectUid)[0]
+        obj_vel = p.getBaseVelocity(self.objectUid)[0]
+        base_info = p.getLinkState(self.pandaUid,11,computeLinkVelocity=1)
+        base_pos = base_info[0]
+        base_vel = base_info[6]
+        obs = list(obj_pos + obj_vel + base_pos + base_vel)
+        return obs
 
     def random_pos_in_panda_space(self):
         # |x|,|y| < 0.8, 0 < z < 1
@@ -298,6 +322,7 @@ class PandaEnv(gym.Env):
         y = math.sqrt(random.uniform(0, length*length-x*x))*random.choice([-1,1])
         z = math.sqrt(length*length - x*x - y*y) + 0.2
         return [x,y,z]
+
 
     # 神经网络输入图像信息来进行训练
     def render(self,mode='human'):
@@ -321,9 +346,9 @@ class PandaEnv(gym.Env):
         rgb_array=rgb_array[:,:,:3]
         return rgb_array
 
+
     def reset(self):
         p.resetSimulation()
-        self.done = False
         p.configureDebugVisualizer(p.COV_ENABLE_RENDERING,0)
         self.gravity = [0,0,-9.8]
         p.setGravity(self.gravity[0], self.gravity[1], self.gravity[2])
@@ -347,12 +372,15 @@ class PandaEnv(gym.Env):
         p.configureDebugVisualizer(p.COV_ENABLE_RENDERING,1)
 
         # reset task
+        self.done = False
         if self.task == 'peg-in-hole':
             self.reset_peg_in_hole()
+            observation = self.render()
         if self.task == 'random-fly':
-            self.reset_fly()
-
+            observation = self.reset_fly()
+            
         return observation
+
 
     def close(self):
         p.disconnect()
