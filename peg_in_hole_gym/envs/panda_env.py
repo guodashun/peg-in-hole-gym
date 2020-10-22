@@ -7,6 +7,7 @@ import math
 import random
 import numpy as np
 from gym import spaces
+from queue import Queue
 
 
 class PandaEnv(gym.Env):
@@ -18,7 +19,7 @@ class PandaEnv(gym.Env):
         p.connect(self.client)
         p.resetDebugVisualizerCamera(cameraDistance=1.5,cameraYaw=0,
                                      cameraPitch=-40,cameraTargetPosition=[0.55,-0.35,0.2])
-        self.action_space=spaces.Box(np.array([-1]*4),np.array([1]*4)) # 末端3维信息+手指1维 (默认朝下)
+        self.action_space=spaces.Box(np.array([-1,-1,-1]),np.array([1,1,1])) # 末端3维信息+手指1维 (默认朝下)
         # self.observation_space=spaces.Box(np.array([-1]*5),np.array([1]*5)) # [夹爪1值 夹爪2值 末端位置x y z]
         self.observation_space = spaces.Box(np.array([-30]*12), np.array([30]*12))
         
@@ -43,7 +44,7 @@ class PandaEnv(gym.Env):
             dx=action[0]*dv
             dy=action[1]*dv
             dz=action[2]*dv
-            fingers=action[3]
+            # fingers=action[3]
 
             currentPose=p.getLinkState(self.pandaUid,11)
             currentPosition=currentPose[0]
@@ -51,7 +52,8 @@ class PandaEnv(gym.Env):
                         currentPosition[1]+dy,
                         currentPosition[2]+dz]
             jointPoses=p.calculateInverseKinematics(self.pandaUid,self.pandaEndEffectorIndex,newPosition,orientation)[0:7]
-            p.setJointMotorControlArray(self.pandaUid,list(range(self.pandaNumDofs))+[9,10],p.POSITION_CONTROL,list(jointPoses)+2*[fingers])
+            # p.setJointMotorControlArray(self.pandaUid,list(range(self.pandaNumDofs))+[9,10],p.POSITION_CONTROL,list(jointPoses)+2*[fingers])
+            p.setJointMotorControlArray(self.pandaUid,list(range(self.pandaNumDofs)),p.POSITION_CONTROL,list(jointPoses))
             p.stepSimulation()
 
         # observation
@@ -64,6 +66,9 @@ class PandaEnv(gym.Env):
             info, reward = self.random_grasp()
         if self.task == 'random-fly':
             observation, reward = self.random_fly()
+        
+        # quick reset for test
+        self.test_mode()
         return observation, reward, done, info
 
 
@@ -202,7 +207,10 @@ class PandaEnv(gym.Env):
             self.state_t = 0
             if self.cur_state >= len(self.stateDurations):
                 self.cur_state = 0
+        
+        self.test_mode()
 
+    def test_mode(self):    
         if self.is_test:
             keys = p.getKeyboardEvents()
             if len(keys)>0:
@@ -267,23 +275,37 @@ class PandaEnv(gym.Env):
     # random fly scene
     def random_fly(self):
         obj_pos = p.getBasePositionAndOrientation(self.objectUid)[0]
-        obj_vel = p.getBaseVelocity(self.objectUid)[0]
-        base_info = p.getLinkState(self.pandaUid,11,computeLinkVelocity=1)
+        obj_vel, obj_w = p.getBaseVelocity(self.objectUid)[0:2]
+        if self.obs_delay:
+            self.obs_delay_queue.put([obj_pos, obj_vel])
+            obj_pos, obj_vel = self.obs_delay_queue.get()
+        base_info = p.getLinkState(self.pandaUid,self.pandaEndEffectorIndex,computeLinkVelocity=1)
         base_pos = base_info[0]
         base_vel = base_info[6]
-        if (abs(obj_vel[0]) + abs(obj_vel[1])) < 1 or \
-           obj_vel[2] < -20: # np.linalg.norm(np.array(obj_pos) - np.array(self.object_pos)) < 0.005
+        # print("fuck", np.linalg.norm(np.array(obj_pos) - np.array(self.object_pos)) < 0.01, (abs(obj_vel[0]) + abs(obj_vel[1])) < 1, obj_vel[2] < -10)
+        if np.linalg.norm(np.array(obj_pos) - np.array(self.object_pos)) < 0.01 or \
+           (abs(obj_vel[0]) + abs(obj_vel[1])) < 1 or \
+           obj_vel[2] < -15 or \
+           np.linalg.norm(obj_w) > 0.1:
             self.done = True
         # print("ahaha",base_pos)
         reward = 0.0
         pos_bias = np.linalg.norm(np.array(base_pos) - np.array(obj_pos))
         vel_bias = np.linalg.norm(np.array(base_vel) - np.array(obj_vel))
-        reward = -math.log(pos_bias) * 0.999 # - math.log(vel_bias) * 0.001
+        pos_r  = -math.log(pos_bias) * 0.7
+        vel_r  = -math.log(vel_bias) * 0.01
+        cli_r  = 10 if p.getContactPoints(self.pandaUid, self.objectUid, 8) else 0
+        self.time_r -= 0.01
+        r_sum  = pos_r + vel_r + cli_r + self.time_r
+        reward = pos_r + vel_r + cli_r + self.time_r
+        print("reward now", r_sum, pos_r, vel_r, self.time_r, cli_r) 
+        # if self.is_test:
+        #     print("collision points:",cli_r) #, self.pandaEndEffectorIndex
         return list(obj_pos+ obj_vel+ base_pos+ base_vel), reward
 
     def reset_fly(self):
         p.resetDebugVisualizerCamera(cameraDistance=10,cameraYaw=0,
-                                     cameraPitch=-89,cameraTargetPosition=[0,0,0])
+                                     cameraPitch=-0,cameraTargetPosition=[0,0,0])
         
         # init flying object
         base_pos = self.random_pos_in_panda_space()
@@ -291,7 +313,7 @@ class PandaEnv(gym.Env):
         vx = random.uniform(4,6) * (-1. if x>0 else 1.)
         t  = abs((base_pos[0] - x) / vx)
         vy = random.uniform(4,6) * random.choice([-1, 1])
-        vz = random.randint(0,10)
+        vz = random.randint(-2,5)
         y  = base_pos[1] - vy * t
         z  = base_pos[2] - (vz * t +  (self.gravity[2]) * t*t / 2)
         self.object_pos = [x, y, z]
@@ -310,16 +332,32 @@ class PandaEnv(gym.Env):
         base_info = p.getLinkState(self.pandaUid,11,computeLinkVelocity=1)
         base_pos = base_info[0]
         base_vel = base_info[6]
+
+        # add time cost
+        self.time_r = 2
+        
+        # add delay
+        self.obs_delay = True if random.random() > 0.3 else False
+        self.obs_delay_queue = Queue(random.randint(1,3))
+        print("queue maxsize", self.obs_delay_queue.maxsize)
+        i = 0
+        while not self.obs_delay_queue.full():
+            i += 1
+            p.stepSimulation()
+            self.obs_delay_queue.put([obj_pos, obj_vel])
+            print("haha, delay is work", i)
+        obj_pos, obj_vel = self.obs_delay_queue.get()
         obs = list(obj_pos + obj_vel + base_pos + base_vel)
         return obs
 
     def random_pos_in_panda_space(self):
         # |x|,|y| < 0.8, 0 < z < 1
         # x^2 + y^2 + (z-0.2)^2 < 0.8^2
-        x = y = z = 0
-        length = random.uniform(0, 0.8)
-        x = random.uniform(-length*length, length*length)
-        y = math.sqrt(random.uniform(0, length*length-x*x))*random.choice([-1,1])
+        x = y = z = 1
+        length = 0.8
+        while (length*length - x*x - y*y) < 0:
+            x = random.uniform(-length, length)
+            y = (math.sqrt(random.uniform(0, length*length-x*x))-random.uniform(0, 0.4))*random.choice([-1,1])
         z = math.sqrt(length*length - x*x - y*y) + 0.2
         return [x,y,z]
 
