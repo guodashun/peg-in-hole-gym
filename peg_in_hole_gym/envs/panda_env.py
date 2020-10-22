@@ -298,7 +298,7 @@ class PandaEnv(gym.Env):
         self.time_r -= 0.01
         r_sum  = pos_r + vel_r + cli_r + self.time_r
         reward = pos_r + vel_r + cli_r + self.time_r
-        print("reward now", r_sum, pos_r, vel_r, self.time_r, cli_r) 
+        # print("reward now", r_sum, pos_r, vel_r, self.time_r, cli_r) 
         # if self.is_test:
         #     print("collision points:",cli_r) #, self.pandaEndEffectorIndex
         return list(obj_pos+ obj_vel+ base_pos+ base_vel), reward
@@ -339,13 +339,11 @@ class PandaEnv(gym.Env):
         # add delay
         self.obs_delay = True if random.random() > 0.3 else False
         self.obs_delay_queue = Queue(random.randint(1,3))
-        print("queue maxsize", self.obs_delay_queue.maxsize)
         i = 0
         while not self.obs_delay_queue.full():
             i += 1
             p.stepSimulation()
             self.obs_delay_queue.put([obj_pos, obj_vel])
-            print("haha, delay is work", i)
         obj_pos, obj_vel = self.obs_delay_queue.get()
         obs = list(obj_pos + obj_vel + base_pos + base_vel)
         return obs
