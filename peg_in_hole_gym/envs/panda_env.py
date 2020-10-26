@@ -8,6 +8,8 @@ import random
 import numpy as np
 from gym import spaces
 from queue import Queue
+from PIL import Image, ImageDraw
+from skimage.draw import polygon
 
 
 class PandaEnv(gym.Env):
@@ -62,8 +64,8 @@ class PandaEnv(gym.Env):
         done = self.done
         info = {}
         if self.task == 'peg-in-hole':
-            observation = self.grasp_img
             info, reward = self.random_grasp()
+            observation = self.grasp_img
         if self.task == 'random-fly':
             observation, reward = self.random_fly()
         
@@ -74,6 +76,13 @@ class PandaEnv(gym.Env):
 
     # peg-in-hole scene
     def random_grasp(self):
+        # init img
+        pos_img = np.zeros(self.output_shape)
+        ang_img = np.zeros(self.output_shape)
+        wid_img = np.zeros(self.output_shape)
+        sin_img = np.sin(2*ang_img)
+        cos_img = np.cos(2*ang_img)
+
         # start grasping
         while(self.done==False): 
             # switch state
@@ -90,6 +99,44 @@ class PandaEnv(gym.Env):
                 # capture the grasp img
                 if self.cur_state == 2:
                     self.grasp_img = self.render()
+                    # projection on x-y plain
+                    # pos = p.getLinkState(self.objectUid, self.grasp_joint_idx)[0]
+                    # pos = [pos[0], pos[1]]
+                    camera_pos = p.getLinkState(self.pandaUid, self.pandaEndEffectorIndex)[0]
+                    camera_pos = [camera_pos[0], camera_pos[1]]
+                    relative_pos = [(targetPos[0] - camera_pos[0])*self.input_rgb_shape[0], (targetPos[1] - camera_pos[1])*self.input_rgb_shape[1]]
+                    # print("fuck", relative_pos)
+                    # pos is (0, 0)
+                    angle = math.atan2(rotate_vector[1], rotate_vector[0])
+                    length = 0.1 # random
+                    width = 0.2
+                    # print("shape", self.grasp_img)
+                    # img = Image.fromarray(pos_img)
+                    # draw = ImageDraw.Draw(img)
+                    # draw.line([(0,0), ((0.5+relative_pos[0])*self.input_rgb_shape[0], (0.5+relative_pos[1])*self.input_rgb_shape[1])], fill=(255,0,0))
+                    a = ( (1. + length * math.cos(angle) + width * math.sin(angle)) / 2 * self.output_shape[0], (1. - length * math.sin(angle) + width * math.cos(angle)) / 2 * self.output_shape[1])
+                    b = ( (1. - length * math.cos(angle) - width * math.sin(angle)) / 2 * self.output_shape[0], (1. + length * math.sin(angle) - width * math.cos(angle)) / 2 * self.output_shape[1])
+                    c = ( (1. - length * math.cos(angle) + width * math.sin(angle)) / 2 * self.output_shape[0], (1. + length * math.sin(angle) + width * math.cos(angle)) / 2 * self.output_shape[1])
+                    d = ( (1. + length * math.cos(angle) - width * math.sin(angle)) / 2 * self.output_shape[0], (1. - length * math.sin(angle) - width * math.cos(angle)) / 2 * self.output_shape[1])
+                    R = [a[0], b[0], c[0], d[0]]
+                    C = [a[1], b[1], c[1], d[0]]
+                    rr, cc = polygon(R, C, shape=self.output_shape)
+                    pos_img[rr,cc] = 1.0
+                    ang_img[rr,cc] = angle
+                    wid_img[rr,cc] = width
+                    # draw.polygon([(100,100), (100,200), (200, 200), (200,100)],outline=(255,0,0))
+                    # draw.polygon([a,c,b,d], fill=(255,0,0))
+                    # img.show()
+                    # cos_o = targetPos[0]/math.sqrt(targetPos[0]*targetPos[0] + targetPos[1]*targetPos[1])
+                    # sin_o = targetPos[1]/math.sqrt(targetPos[0]*targetPos[0] + targetPos[1]*targetPos[1])
+                    sin_img = np.sin(2*ang_img)
+                    cos_img = np.cos(2*ang_img)
+                if self.cur_state == 4:
+                    self.constraintUid = p.createConstraint(self.pandaUid, self.pandaEndEffectorIndex, self.objectUid, self.grasp_joint_idx, p.JOINT_GEAR, 
+                                                            [0,0,0], [0,0,0], self.random_vector, childFrameOrientation=p.getQuaternionFromEuler([0,-math.pi,math.pi/2.+targetOrn[2]])
+                                                           )
+                if self.cur_state == 7:
+                    p.removeConstraint(self.constraintUid)
 
             # p.addUserDebugLine(rawPos, targetPos,lineColorRGB=[255,0,0], lineWidth=3, lifeTime=1.0)
             self.grasp_process(self.cur_state, targetPos, targetOrn)
@@ -99,22 +146,16 @@ class PandaEnv(gym.Env):
             self.last_state = self.cur_state
 
         self.done = False
-        # projection on x-y plain
-        pos = p.getLinkState(self.objectUid, self.grasp_joint_idx)[0]
-        pos = [pos[0], pos[1]]
-        cos_o = pos[0]/math.sqrt(pos[0]*pos[0] + pos[1]*pos[1])
-        sin_o = pos[1]/math.sqrt(pos[0]*pos[0] + pos[1]*pos[1])
-        width = 0.2
         threshold = 0.05 # test result
         q = 1. if np.linalg.norm(np.array(p.getLinkState(self.objectUid, self.grasp_joint_idx)[0])-
                                  np.array(p.getBasePositionAndOrientation(self.holeUid)[0])) < threshold \
                else 0.
-        if self.is_test:
-            print("rawPos", p.getLinkState(self.objectUid, self.grasp_joint_idx)[0], "holePos", p.getBasePositionAndOrientation(self.holeUid)[0],
-                "result",np.linalg.norm(np.array(p.getLinkState(self.objectUid, self.grasp_joint_idx)[0])-
-                                    np.array(p.getBasePositionAndOrientation(self.holeUid)[0])),
-                "q", q)
-        return [pos, sin_o, cos_o, width], q
+        # if self.is_test:
+        #     print("rawPos", p.getLinkState(self.objectUid, self.grasp_joint_idx)[0], "holePos", p.getBasePositionAndOrientation(self.holeUid)[0],
+        #         "result",np.linalg.norm(np.array(p.getLinkState(self.objectUid, self.grasp_joint_idx)[0])-
+        #                             np.array(p.getBasePositionAndOrientation(self.holeUid)[0])),
+        #         "q", q)
+        return [pos_img, sin_img, cos_img, wid_img], q
 
     def grasp_process(self, state, targetPos, targetOrn):
         currentPos = p.getLinkState(self.pandaUid, self.pandaEndEffectorIndex)[0]
@@ -270,7 +311,11 @@ class PandaEnv(gym.Env):
         # calculate target pos and dir
         self.grasp_joint_idx = random.choice([0,23])
         self.random_vector = [0, random.uniform(-0.03, 0.03), 0]
-
+        
+        # set image shape
+        self.input_rgb_shape = (300, 300, 3)
+        self.input_dpt_shape = (300, 300)
+        self.output_shape    = (300, 300)
 
     # random fly scene
     def random_fly(self):
@@ -294,10 +339,9 @@ class PandaEnv(gym.Env):
         vel_bias = np.linalg.norm(np.array(base_vel) - np.array(obj_vel))
         pos_r  = -math.log(pos_bias) * 0.7
         vel_r  = -math.log(vel_bias) * 0.01
-        cli_r  = 10 if p.getContactPoints(self.pandaUid, self.objectUid, 8) else 0
+        cli_r  = 800 + self.time_r if p.getContactPoints(self.pandaUid, self.objectUid, 8) else -0.5
         self.time_r -= 0.01
-        r_sum  = pos_r + vel_r + cli_r + self.time_r
-        reward = pos_r + vel_r + cli_r + self.time_r
+        reward = cli_r#+ pos_r # + vel_r + 
         # print("reward now", r_sum, pos_r, vel_r, self.time_r, cli_r) 
         # if self.is_test:
         #     print("collision points:",cli_r) #, self.pandaEndEffectorIndex
@@ -334,7 +378,7 @@ class PandaEnv(gym.Env):
         base_vel = base_info[6]
 
         # add time cost
-        self.time_r = 2
+        self.time_r = 0
         
         # add delay
         self.obs_delay = True if random.random() > 0.3 else False
@@ -363,24 +407,47 @@ class PandaEnv(gym.Env):
     # 神经网络输入图像信息来进行训练
     def render(self,mode='human'):
         panda_position =p.getLinkState(self.pandaUid, self.pandaEndEffectorIndex)[0]
-        view_matrix=p.computeViewMatrixFromYawPitchRoll(cameraTargetPosition=[panda_position[0],
-                                                                              panda_position[1],
-                                                                              panda_position[2]-0.5],
-                                                        distance=.7,
-                                                        yaw=0,
-                                                        pitch=-70,
-                                                        roll=0,upAxisIndex=2)
-        proj_matrix=p.computeProjectionMatrixFOV(fov=60,aspect=float(960)/720,
-                                                 nearVal=0.01,
-                                                 farVal=100.0)
-        (_,_,px,_,_)=p.getCameraImage(width=960,height=720,
+        # view_matrix=p.computeViewMatrixFromYawPitchRoll(cameraTargetPosition=[panda_position[0],
+        #                                                                       panda_position[1],
+        #                                                                       panda_position[2]-0.5],
+        #                                                 distance=.7,
+        #                                                 yaw=0,
+        #                                                 pitch=80,
+        #                                                 roll=0,upAxisIndex=2)
+        view_matrix = p.computeViewMatrix(cameraEyePosition=[panda_position[0],
+                                                             panda_position[1],
+                                                             panda_position[2]],
+                                          cameraTargetPosition=[panda_position[0],
+                                                                panda_position[1],
+                                                                panda_position[2]-10],
+                                          cameraUpVector=[0,1,0],          
+        )
+        proj_matrix=p.computeProjectionMatrixFOV(fov=60,aspect=float(self.input_rgb_shape[1]/self.input_rgb_shape[0]),
+                                                 nearVal=0.001,
+                                                 farVal=1000.0)
+        (_,_,r,d,_)=p.getCameraImage(width=self.input_rgb_shape[1],height=self.input_rgb_shape[0],
                                       viewMatrix=view_matrix,
                                       projectionMatrix=proj_matrix,
-                                      renderer=p.ER_BULLET_HARDWARE_OPENGL)
-        rgb_array=np.array(px,dtype=np.uint8)
-        rgb_array=np.reshape(rgb_array,(720,960,4))
-        rgb_array=rgb_array[:,:,:3]
-        return rgb_array
+                                      renderer=p.ER_TINY_RENDERER)
+        rgb_array = np.array(r,dtype=np.uint8)
+
+        dpt_array = np.array(d) #, dtype=np.uint8 # need fix
+        # # raw camera shape is (720, 960, 4)
+        # # center crop img
+        # rgb_array = rgb_array[int((720 - self.input_rgb_shape[0])/2):int(self.input_rgb_shape[0]+(720 - self.input_rgb_shape[0])/2),
+        #                       int((960 - self.input_rgb_shape[1])/2):int(self.input_rgb_shape[1]+(960 - self.input_rgb_shape[1])/2),
+        #                       :self.input_rgb_shape[2]]
+        # dpt_array = dpt_array[int((720 - self.input_rgb_shape[0])/2):int(self.input_rgb_shape[0]+(720 - self.input_rgb_shape[0])/2),
+        #                       int((960 - self.input_rgb_shape[1])/2):int(self.input_rgb_shape[1]+(960 - self.input_rgb_shape[1])/2)]
+        # reshape img
+        rgb_array = rgb_array[:,:,:3]
+        # print("dpthaha", dpt_array)
+        res =   np.concatenate(
+                    (dpt_array.reshape((dpt_array.shape[0],dpt_array.shape[1],1)),
+                    rgb_array),
+                    2
+                )
+        return res
 
 
     def reset(self):
