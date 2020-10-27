@@ -67,8 +67,8 @@ class PandaEnv(gym.Env):
             info, reward = self.random_grasp()
             observation = self.grasp_img
         if self.task == 'random-fly':
-            observation, reward = self.random_fly()
-        
+            observation, reward, success = self.random_fly()
+            info['success'] = success
         # quick reset for test
         self.test_mode()
         return observation, reward, done, info
@@ -328,38 +328,51 @@ class PandaEnv(gym.Env):
         base_pos = base_info[0]
         base_vel = base_info[6]
         # print("fuck", np.linalg.norm(np.array(obj_pos) - np.array(self.object_pos)) < 0.01, (abs(obj_vel[0]) + abs(obj_vel[1])) < 1, obj_vel[2] < -10)
-        if np.linalg.norm(np.array(obj_pos) - np.array(self.object_pos)) < 0.01 or \
-           (abs(obj_vel[0]) + abs(obj_vel[1])) < 1 or \
-           obj_vel[2] < -15 or \
-           np.linalg.norm(obj_w) > 0.1:
+        if (np.linalg.norm(np.array(obj_pos) - np.array(self.object_pos)) < 0.01 
+           or (abs(obj_vel[0]) + abs(obj_vel[1])) < 1 
+           or obj_vel[2] < -15 
+        #    or np.linalg.norm(obj_w) > 0.1 
+           ):
             self.done = True
-        # print("ahaha",base_pos)
         reward = 0.0
+        success = False
         pos_bias = np.linalg.norm(np.array(base_pos) - np.array(obj_pos))
         vel_bias = np.linalg.norm(np.array(base_vel) - np.array(obj_vel))
+        move_cst = np.linalg.norm(np.array(base_pos) - np.array(self.last_panda_pos))
         pos_r  = -math.log(pos_bias) * 0.7
         vel_r  = -math.log(vel_bias) * 0.01
-        cli_r  = 800 + self.time_r if p.getContactPoints(self.pandaUid, self.objectUid, 8) else -0.5
+        move_r = 1 - math.exp(move_cst)
+        use_time_r = False
+        if p.getContactPoints(self.pandaUid, self.objectUid, 8):
+            cli_r = 800 + (self.time_r if use_time_r else 0.)
+            self.done=True
+            success = True
+        else:
+            cli_r = -0.5
         self.time_r -= 0.01
-        reward = cli_r#+ pos_r # + vel_r + 
+
+        reward = cli_r + move_r#+ pos_r # + vel_r + 
         # print("reward now", r_sum, pos_r, vel_r, self.time_r, cli_r) 
         # if self.is_test:
         #     print("collision points:",cli_r) #, self.pandaEndEffectorIndex
-        return list(obj_pos+ obj_vel+ base_pos+ base_vel), reward
+
+        self.last_panda_pos = base_pos
+
+        return list(obj_pos+ obj_vel+ base_pos+ base_vel), reward, success
 
     def reset_fly(self):
         p.resetDebugVisualizerCamera(cameraDistance=10,cameraYaw=0,
                                      cameraPitch=-0,cameraTargetPosition=[0,0,0])
         
         # init flying object
-        base_pos = self.random_pos_in_panda_space()
+        target_pos = self.random_pos_in_panda_space()
         x  = random.uniform(4,6) * random.choice([-1, 1])
         vx = random.uniform(4,6) * (-1. if x>0 else 1.)
-        t  = abs((base_pos[0] - x) / vx)
+        t  = abs((target_pos[0] - x) / vx)
         vy = random.uniform(4,6) * random.choice([-1, 1])
         vz = random.randint(-2,5)
-        y  = base_pos[1] - vy * t
-        z  = base_pos[2] - (vz * t +  (self.gravity[2]) * t*t / 2)
+        y  = target_pos[1] - vy * t
+        z  = target_pos[2] - (vz * t +  (self.gravity[2]) * t*t / 2)
         self.object_pos = [x, y, z]
         base_orn = p.getQuaternionFromEuler([random.uniform(-math.pi, math.pi) for i in range(3)])
         p.setAdditionalSearchPath(pybullet_data.getDataPath())
@@ -369,13 +382,14 @@ class PandaEnv(gym.Env):
         p.changeDynamics(self.objectUid, -1, linearDamping=0, angularDamping=0)
         p.resetBaseVelocity(self.objectUid, [vx,vy,vz])
 
-        p.addUserDebugLine([0,0,0], base_pos,lineColorRGB=[255,0,0], lineWidth=3)
+        p.addUserDebugLine([0,0,0], target_pos,lineColorRGB=[255,0,0], lineWidth=3)
 
         obj_pos = p.getBasePositionAndOrientation(self.objectUid)[0]
         obj_vel = p.getBaseVelocity(self.objectUid)[0]
         base_info = p.getLinkState(self.pandaUid,11,computeLinkVelocity=1)
         base_pos = base_info[0]
         base_vel = base_info[6]
+        self.last_panda_pos = base_pos
 
         # add time cost
         self.time_r = 0
