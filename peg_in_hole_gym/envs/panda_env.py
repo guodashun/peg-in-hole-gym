@@ -10,6 +10,7 @@ from gym import spaces
 from queue import Queue
 from PIL import Image, ImageDraw
 from skimage.draw import polygon
+from sklearn.preprocessing import MinMaxScaler
 
 
 class PandaEnv(gym.Env):
@@ -21,9 +22,12 @@ class PandaEnv(gym.Env):
         p.connect(self.client)
         p.resetDebugVisualizerCamera(cameraDistance=1.5,cameraYaw=0,
                                      cameraPitch=-40,cameraTargetPosition=[0.55,-0.35,0.2])
-        self.action_space=spaces.Box(np.array([-1,-1,-1]),np.array([1,1,1])) # 末端3维信息+手指1维 (默认朝下)
-        # self.observation_space=spaces.Box(np.array([-1]*5),np.array([1]*5)) # [夹爪1值 夹爪2值 末端位置x y z]
-        self.observation_space = spaces.Box(np.array([-30]*12), np.array([30]*12))
+        if self.task == "random-fly":
+            self.action_space=spaces.Box(np.array([-1]*3),np.array([1]*3)) # 末端3维信息
+            self.observation_space = spaces.Box(np.array([-1]*12), np.array([1]*12)) # [物体位置+速度 末端位置+速度]
+        else:
+            self.action_space=spaces.Box(np.array([-1]*4),np.array([1]*4)) # 末端3维信息+手指1维 (默认朝下)
+            self.observation_space=spaces.Box(np.array([-1]*5),np.array([1]*5)) # [夹爪1值 夹爪2值 末端位置x y z]
         
         # test_mode
         self.is_test = is_test
@@ -46,16 +50,18 @@ class PandaEnv(gym.Env):
             dx=action[0]*dv
             dy=action[1]*dv
             dz=action[2]*dv
-            # fingers=action[3]
+            fingers=[] if self.task == 'random-fly' else action[3]
 
             currentPose=p.getLinkState(self.pandaUid,11)
             currentPosition=currentPose[0]
             newPosition=[currentPosition[0]+dx,
-                        currentPosition[1]+dy,
-                        currentPosition[2]+dz]
+                         currentPosition[1]+dy,
+                         currentPosition[2]+dz]
             jointPoses=p.calculateInverseKinematics(self.pandaUid,self.pandaEndEffectorIndex,newPosition,orientation)[0:7]
-            # p.setJointMotorControlArray(self.pandaUid,list(range(self.pandaNumDofs))+[9,10],p.POSITION_CONTROL,list(jointPoses)+2*[fingers])
-            p.setJointMotorControlArray(self.pandaUid,list(range(self.pandaNumDofs)),p.POSITION_CONTROL,list(jointPoses))
+            if self.task == 'random-fly':
+                p.setJointMotorControlArray(self.pandaUid,list(range(self.pandaNumDofs)),p.POSITION_CONTROL,list(jointPoses))
+            else:
+                p.setJointMotorControlArray(self.pandaUid,list(range(self.pandaNumDofs))+[9,10],p.POSITION_CONTROL,list(jointPoses)+2*[fingers])
             p.stepSimulation()
 
         # observation
@@ -105,12 +111,10 @@ class PandaEnv(gym.Env):
                     camera_pos = p.getLinkState(self.pandaUid, self.pandaEndEffectorIndex)[0]
                     camera_pos = [camera_pos[0], camera_pos[1]]
                     relative_pos = [(targetPos[0] - camera_pos[0])*self.input_rgb_shape[0], (targetPos[1] - camera_pos[1])*self.input_rgb_shape[1]]
-                    # print("fuck", relative_pos)
                     # pos is (0, 0)
                     angle = math.atan2(rotate_vector[1], rotate_vector[0])
                     length = 0.1 # random
                     width = 0.2
-                    # print("shape", self.grasp_img)
                     # img = Image.fromarray(pos_img)
                     # draw = ImageDraw.Draw(img)
                     # draw.line([(0,0), ((0.5+relative_pos[0])*self.input_rgb_shape[0], (0.5+relative_pos[1])*self.input_rgb_shape[1])], fill=(255,0,0))
@@ -327,11 +331,10 @@ class PandaEnv(gym.Env):
         base_info = p.getLinkState(self.pandaUid,self.pandaEndEffectorIndex,computeLinkVelocity=1)
         base_pos = base_info[0]
         base_vel = base_info[6]
-        # print("fuck", np.linalg.norm(np.array(obj_pos) - np.array(self.object_pos)) < 0.01, (abs(obj_vel[0]) + abs(obj_vel[1])) < 1, obj_vel[2] < -10)
         if (np.linalg.norm(np.array(obj_pos) - np.array(self.object_pos)) < 0.01 
            or (abs(obj_vel[0]) + abs(obj_vel[1])) < 1 
            or obj_vel[2] < -15 
-        #    or np.linalg.norm(obj_w) > 0.1 
+           or np.linalg.norm(obj_w) > 0.5 
            ):
             self.done = True
         reward = 0.0
@@ -351,25 +354,31 @@ class PandaEnv(gym.Env):
             cli_r = -0.5
         self.time_r -= 0.01
 
-        reward = cli_r + move_r#+ pos_r # + vel_r + 
-        # print("reward now", r_sum, pos_r, vel_r, self.time_r, cli_r) 
-        # if self.is_test:
-        #     print("collision points:",cli_r) #, self.pandaEndEffectorIndex
+        reward = cli_r + pos_r # + vel_r + + move_r
 
         self.last_panda_pos = base_pos
 
-        return list(obj_pos+ obj_vel+ base_pos+ base_vel), reward, success
+        # normalize
+        res = list(obj_pos+ obj_vel+ base_pos+ base_vel)
+        res = self.data_normalize(res)
+
+        return res, reward, success
 
     def reset_fly(self):
         p.resetDebugVisualizerCamera(cameraDistance=10,cameraYaw=0,
                                      cameraPitch=-0,cameraTargetPosition=[0,0,0])
-        
+        # normalize range
+        self.normalize_range = [(-6,6), (-6,6), (-3,16),
+                                (-6,6), (-6,6), (-15, 5),
+                                (-1,1), (-1,1), (-1,1),
+                                (-10, 10), (-10, 10), (-10,10)]
+
         # init flying object
         target_pos = self.random_pos_in_panda_space()
-        x  = random.uniform(4,6) * random.choice([-1, 1])
+        x  = random.uniform(4,6) * random.choice([-1., 1.])
         vx = random.uniform(4,6) * (-1. if x>0 else 1.)
         t  = abs((target_pos[0] - x) / vx)
-        vy = random.uniform(4,6) * random.choice([-1, 1])
+        vy = random.uniform(4,6) * random.choice([-1., 1.])
         vz = random.randint(-2,5)
         y  = target_pos[1] - vy * t
         z  = target_pos[2] - (vz * t +  (self.gravity[2]) * t*t / 2)
@@ -396,14 +405,16 @@ class PandaEnv(gym.Env):
         
         # add delay
         self.obs_delay = True if random.random() > 0.3 else False
-        self.obs_delay_queue = Queue(random.randint(1,3))
-        i = 0
-        while not self.obs_delay_queue.full():
-            i += 1
-            p.stepSimulation()
-            self.obs_delay_queue.put([obj_pos, obj_vel])
-        obj_pos, obj_vel = self.obs_delay_queue.get()
+        if self.obs_delay:
+            self.obs_delay_queue = Queue(random.randint(1,3))
+            i = 0
+            while not self.obs_delay_queue.full():
+                i += 1
+                p.stepSimulation()
+                self.obs_delay_queue.put([obj_pos, obj_vel])
+            obj_pos, obj_vel = self.obs_delay_queue.get()
         obs = list(obj_pos + obj_vel + base_pos + base_vel)
+        obs = self.data_normalize(obs)
         return obs
 
     def random_pos_in_panda_space(self):
@@ -416,6 +427,11 @@ class PandaEnv(gym.Env):
             y = (math.sqrt(random.uniform(0, length*length-x*x))-random.uniform(0, 0.4))*random.choice([-1,1])
         z = math.sqrt(length*length - x*x - y*y) + 0.2
         return [x,y,z]
+
+    def data_normalize(self, data):
+        for i in range(len(data)):
+            data[i] = (data[i] - self.normalize_range[i][0]) / (self.normalize_range[i][1] - self.normalize_range[i][0])
+        return data
 
 
     # 神经网络输入图像信息来进行训练
@@ -455,7 +471,6 @@ class PandaEnv(gym.Env):
         #                       int((960 - self.input_rgb_shape[1])/2):int(self.input_rgb_shape[1]+(960 - self.input_rgb_shape[1])/2)]
         # reshape img
         rgb_array = rgb_array[:,:,:3]
-        # print("dpthaha", dpt_array)
         res =   np.concatenate(
                     (dpt_array.reshape((dpt_array.shape[0],dpt_array.shape[1],1)),
                     rgb_array),
