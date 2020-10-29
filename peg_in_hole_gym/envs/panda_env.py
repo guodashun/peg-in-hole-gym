@@ -6,6 +6,7 @@ import gym
 import math
 import random
 import numpy as np
+from pybullet_utils.bullet_client import BulletClient
 from gym import spaces
 from queue import Queue
 from PIL import Image, ImageDraw
@@ -19,8 +20,9 @@ class PandaEnv(gym.Env):
         assert task in ['peg-in-hole', 'random-fly']
         self.task = task
         self.client = client
-        p.connect(self.client)
-        p.resetDebugVisualizerCamera(cameraDistance=1.5,cameraYaw=0,
+        self.p = BulletClient(client)
+        # self.p.connect(self.client)
+        self.p.resetDebugVisualizerCamera(cameraDistance=1.5,cameraYaw=0,
                                      cameraPitch=-40,cameraTargetPosition=[0.55,-0.35,0.2])
         if self.task == "random-fly":
             self.action_space=spaces.Box(np.array([-1]*3),np.array([1]*3)) # 末端3维信息
@@ -44,25 +46,25 @@ class PandaEnv(gym.Env):
     def step(self,action):
         # excute
         if self.task != 'peg-in-hole':
-            p.configureDebugVisualizer(p.COV_ENABLE_SINGLE_STEP_RENDERING)
-            orientation=p.getQuaternionFromEuler([0.,-math.pi,math.pi/2.])
+            self.p.configureDebugVisualizer(self.p.COV_ENABLE_SINGLE_STEP_RENDERING)
+            orientation=self.p.getQuaternionFromEuler([0.,-math.pi,math.pi/2.])
             dv=0.3
             dx=action[0]*dv
             dy=action[1]*dv
             dz=action[2]*dv
             fingers=[] if self.task == 'random-fly' else action[3]
 
-            currentPose=p.getLinkState(self.pandaUid,11)
+            currentPose=self.p.getLinkState(self.pandaUid,11)
             currentPosition=currentPose[0]
             newPosition=[currentPosition[0]+dx,
                          currentPosition[1]+dy,
                          currentPosition[2]+dz]
-            jointPoses=p.calculateInverseKinematics(self.pandaUid,self.pandaEndEffectorIndex,newPosition,orientation)[0:7]
+            jointPoses=self.p.calculateInverseKinematics(self.pandaUid,self.pandaEndEffectorIndex,newPosition,orientation)[0:7]
             if self.task == 'random-fly':
-                p.setJointMotorControlArray(self.pandaUid,list(range(self.pandaNumDofs)),p.POSITION_CONTROL,list(jointPoses))
+                self.p.setJointMotorControlArray(self.pandaUid,list(range(self.pandaNumDofs)),self.p.POSITION_CONTROL,list(jointPoses))
             else:
-                p.setJointMotorControlArray(self.pandaUid,list(range(self.pandaNumDofs))+[9,10],p.POSITION_CONTROL,list(jointPoses)+2*[fingers])
-            p.stepSimulation()
+                self.p.setJointMotorControlArray(self.pandaUid,list(range(self.pandaNumDofs))+[9,10],self.p.POSITION_CONTROL,list(jointPoses)+2*[fingers])
+            self.p.stepSimulation()
 
         # observation
         observation = []
@@ -88,6 +90,11 @@ class PandaEnv(gym.Env):
         wid_img = np.zeros(self.output_shape)
         sin_img = np.sin(2*ang_img)
         cos_img = np.cos(2*ang_img)
+        x = 0.0
+        y = 0.0
+        angle = 0.0
+        width = 0.0
+        length = 0.0
 
         # start grasping
         while(self.done==False): 
@@ -95,7 +102,7 @@ class PandaEnv(gym.Env):
             self.update_state()
 
             # calculate random grasp pos
-            rawPos, targetOrn = p.getLinkState(self.objectUid, self.grasp_joint_idx)[0:2]
+            rawPos, targetOrn = self.p.getLinkState(self.objectUid, self.grasp_joint_idx)[0:2]
             rotate_vector = self.rotate_vector(self.random_vector, targetOrn)
             targetPos = [rawPos[0] + rotate_vector[0], 
                          rawPos[1] + rotate_vector[1],
@@ -106,9 +113,9 @@ class PandaEnv(gym.Env):
                 if self.cur_state == 2:
                     self.grasp_img = self.render()
                     # projection on x-y plain
-                    # pos = p.getLinkState(self.objectUid, self.grasp_joint_idx)[0]
+                    # pos = self.p.getLinkState(self.objectUid, self.grasp_joint_idx)[0]
                     # pos = [pos[0], pos[1]]
-                    camera_pos = p.getLinkState(self.pandaUid, self.pandaEndEffectorIndex)[0]
+                    camera_pos = self.p.getLinkState(self.pandaUid, self.pandaEndEffectorIndex)[0]
                     camera_pos = [camera_pos[0], camera_pos[1]]
                     relative_pos = [(targetPos[0] - camera_pos[0])*self.input_rgb_shape[0], (targetPos[1] - camera_pos[1])*self.input_rgb_shape[1]]
                     # pos is (0, 0)
@@ -129,117 +136,117 @@ class PandaEnv(gym.Env):
                     ang_img[rr,cc] = angle
                     wid_img[rr,cc] = width
                     # draw.polygon([(100,100), (100,200), (200, 200), (200,100)],outline=(255,0,0))
-                    # draw.polygon([a,c,b,d], fill=(255,0,0))
+                    # draw.polygon([a,c,b,d], outline=25)
                     # img.show()
                     # cos_o = targetPos[0]/math.sqrt(targetPos[0]*targetPos[0] + targetPos[1]*targetPos[1])
                     # sin_o = targetPos[1]/math.sqrt(targetPos[0]*targetPos[0] + targetPos[1]*targetPos[1])
                     sin_img = np.sin(2*ang_img)
                     cos_img = np.cos(2*ang_img)
                 if self.cur_state == 4:
-                    self.constraintUid = p.createConstraint(self.pandaUid, self.pandaEndEffectorIndex, self.objectUid, self.grasp_joint_idx, p.JOINT_GEAR, 
-                                                            [0,0,0], [0,0,0], self.random_vector, childFrameOrientation=p.getQuaternionFromEuler([0,-math.pi,math.pi/2.+targetOrn[2]])
+                    self.constraintUid = self.p.createConstraint(self.pandaUid, self.pandaEndEffectorIndex, self.objectUid, self.grasp_joint_idx, self.p.JOINT_GEAR, 
+                                                            [0,0,0], [0,0,0], self.random_vector, childFrameOrientation=self.p.getQuaternionFromEuler([0,-math.pi,math.pi/2.+targetOrn[2]])
                                                            )
                 if self.cur_state == 7:
-                    p.removeConstraint(self.constraintUid)
+                    self.p.removeConstraint(self.constraintUid)
 
-            # p.addUserDebugLine(rawPos, targetPos,lineColorRGB=[255,0,0], lineWidth=3, lifeTime=1.0)
+            # self.p.addUserDebugLine(rawPos, targetPos,lineColorRGB=[255,0,0], lineWidth=3, lifeTime=1.0)
             self.grasp_process(self.cur_state, targetPos, targetOrn)
-            p.stepSimulation()
+            self.p.stepSimulation()
             if self.client == p.GUI:
                 time.sleep(1./240)
             self.last_state = self.cur_state
 
         self.done = False
         threshold = 0.05 # test result
-        q = 1. if np.linalg.norm(np.array(p.getLinkState(self.objectUid, self.grasp_joint_idx)[0])-
-                                 np.array(p.getBasePositionAndOrientation(self.holeUid)[0])) < threshold \
+        q = 1. if np.linalg.norm(np.array(self.p.getLinkState(self.objectUid, self.grasp_joint_idx)[0])-
+                                 np.array(self.p.getBasePositionAndOrientation(self.holeUid)[0])) < threshold \
                else 0.
         # if self.is_test:
-        #     print("rawPos", p.getLinkState(self.objectUid, self.grasp_joint_idx)[0], "holePos", p.getBasePositionAndOrientation(self.holeUid)[0],
-        #         "result",np.linalg.norm(np.array(p.getLinkState(self.objectUid, self.grasp_joint_idx)[0])-
-        #                             np.array(p.getBasePositionAndOrientation(self.holeUid)[0])),
+        #     print("rawPos", self.p.getLinkState(self.objectUid, self.grasp_joint_idx)[0], "holePos", self.p.getBasePositionAndOrientation(self.holeUid)[0],
+        #         "result",np.linalg.norm(np.array(self.p.getLinkState(self.objectUid, self.grasp_joint_idx)[0])-
+        #                             np.array(self.p.getBasePositionAndOrientation(self.holeUid)[0])),
         #         "q", q)
-        return [pos_img, sin_img, cos_img, wid_img], q
+        return [[pos_img, sin_img, cos_img, wid_img],[x,y,angle,width,length]], q
 
     def grasp_process(self, state, targetPos, targetOrn):
-        currentPos = p.getLinkState(self.pandaUid, self.pandaEndEffectorIndex)[0]
+        currentPos = self.p.getLinkState(self.pandaUid, self.pandaEndEffectorIndex)[0]
         
         targetPos = self.smooth_vel(currentPos, targetPos)
-        targetOrn = p.getEulerFromQuaternion(targetOrn)
+        targetOrn = self.p.getEulerFromQuaternion(targetOrn)
 
         # gripper width init
         if state == 0:
             for i in [9,10]:
-                p.setJointMotorControl2(self.pandaUid, i, p.POSITION_CONTROL, 0.02 ,force= 20)
+                self.p.setJointMotorControl2(self.pandaUid, i, self.p.POSITION_CONTROL, 0.02 ,force= 20)
 
         # gripper moving to grasping-target x,y 
         if state == 1:
-            jointPoses = p.calculateInverseKinematics(
+            jointPoses = self.p.calculateInverseKinematics(
                     self.pandaUid, self.pandaEndEffectorIndex, 
-                    targetPos+np.array([0,0,0.05]), p.getQuaternionFromEuler([0,-math.pi,math.pi/2.+targetOrn[2]])
+                    targetPos+np.array([0,0,0.05]), self.p.getQuaternionFromEuler([0,-math.pi,math.pi/2.+targetOrn[2]])
                 )
             for i in range(self.pandaNumDofs):
-                p.setJointMotorControl2(self.pandaUid, i, p.POSITION_CONTROL, jointPoses[i], force=5.*240.)
+                self.p.setJointMotorControl2(self.pandaUid, i, self.p.POSITION_CONTROL, jointPoses[i], force=5.*240.)
 
         # gripper moving to grasping-target z
         if state == 2:
-            jointPoses = p.calculateInverseKinematics(
+            jointPoses = self.p.calculateInverseKinematics(
                     self.pandaUid, self.pandaEndEffectorIndex, 
-                    targetPos+np.array([0,0,-0.01]), p.getQuaternionFromEuler([0,-math.pi,math.pi/2.+targetOrn[2]])
+                    targetPos+np.array([0,0,-0.01]), self.p.getQuaternionFromEuler([0,-math.pi,math.pi/2.+targetOrn[2]])
                 )
             for i in range(self.pandaNumDofs):
-                p.setJointMotorControl2(self.pandaUid, i, p.POSITION_CONTROL, jointPoses[i], force=5.*240.)
+                self.p.setJointMotorControl2(self.pandaUid, i, self.p.POSITION_CONTROL, jointPoses[i], force=5.*240.)
         
         # grasping
         if state == 3:
             for i in [9,10]:
-                p.setJointMotorControl2(self.pandaUid, i, p.POSITION_CONTROL, 0.006 ,force= 20000)
+                self.p.setJointMotorControl2(self.pandaUid, i, self.p.POSITION_CONTROL, 0.006 ,force= 20000)
         
         # lift
         if state == 4:
             targetPos = [self.hole_state[0] - 0.2, self.hole_state[1], self.hole_state[2]]
             targetPos = self.smooth_vel(currentPos, targetPos)
-            jointPoses = p.calculateInverseKinematics(
+            jointPoses = self.p.calculateInverseKinematics(
                 self.pandaUid, self.pandaEndEffectorIndex, targetPos, 
-                p.getQuaternionFromEuler([0.,-math.pi,-math.pi]))
+                self.p.getQuaternionFromEuler([0.,-math.pi,-math.pi]))
             for i in range(self.pandaNumDofs):
-                p.setJointMotorControl2(self.pandaUid, i, p.POSITION_CONTROL, jointPoses[i], force=5.*240)
+                self.p.setJointMotorControl2(self.pandaUid, i, self.p.POSITION_CONTROL, jointPoses[i], force=5.*240)
 
 
         # gripper moving to manipulation-target (y,z)
         if state == 5:
             targetPos = [self.hole_state[0] - 0.04, self.hole_state[1], self.hole_state[2]]
             targetPos = self.smooth_vel(currentPos, targetPos)
-            jointPoses = p.calculateInverseKinematics(
+            jointPoses = self.p.calculateInverseKinematics(
                 self.pandaUid, self.pandaEndEffectorIndex, 
-                targetPos, p.getQuaternionFromEuler([0.,-math.pi,-math.pi]))
+                targetPos, self.p.getQuaternionFromEuler([0.,-math.pi,-math.pi]))
             for i in range(self.pandaNumDofs):
-                p.setJointMotorControl2(self.pandaUid, i, p.POSITION_CONTROL, jointPoses[i], force=5.*240.)
+                self.p.setJointMotorControl2(self.pandaUid, i, self.p.POSITION_CONTROL, jointPoses[i], force=5.*240.)
             
 
         # gripper moving to manipulating-target z
         if state == 6:
             targetPos = self.hole_state
-            jointPoses = p.calculateInverseKinematics(
+            jointPoses = self.p.calculateInverseKinematics(
                 self.pandaUid, self.pandaEndEffectorIndex, 
-                targetPos, p.getQuaternionFromEuler([0.,-math.pi,-math.pi]))
+                targetPos, self.p.getQuaternionFromEuler([0.,-math.pi,-math.pi]))
             for i in range(self.pandaNumDofs):
-                p.setJointMotorControl2(self.pandaUid, i, p.POSITION_CONTROL, jointPoses[i], force=5.*240.)
+                self.p.setJointMotorControl2(self.pandaUid, i, self.p.POSITION_CONTROL, jointPoses[i], force=5.*240.)
 
         # loosing
         if state == 7:
             for i in [9,10]:
-                p.setJointMotorControl2(self.pandaUid, i, p.POSITION_CONTROL, 0.02 ,force= 20)
+                self.p.setJointMotorControl2(self.pandaUid, i, self.p.POSITION_CONTROL, 0.02 ,force= 20)
 
 
         # completion
         if state == 8:
             targetPos = [0.2, -0.6, 0.4]
-            jointPoses = p.calculateInverseKinematics(
+            jointPoses = self.p.calculateInverseKinematics(
                 self.pandaUid, self.pandaEndEffectorIndex, 
-                targetPos, p.getQuaternionFromEuler([0.,-math.pi,math.pi/2.]))
+                targetPos, self.p.getQuaternionFromEuler([0.,-math.pi,math.pi/2.]))
             for i in range(self.pandaNumDofs):
-                p.setJointMotorControl2(self.pandaUid, i, p.POSITION_CONTROL, jointPoses[i], force=5.*240.)
+                self.p.setJointMotorControl2(self.pandaUid, i, self.p.POSITION_CONTROL, jointPoses[i], force=5.*240.)
 
         # reset
         if state == 9: 
@@ -257,10 +264,10 @@ class PandaEnv(gym.Env):
 
     def test_mode(self):    
         if self.is_test:
-            keys = p.getKeyboardEvents()
+            keys = self.p.getKeyboardEvents()
             if len(keys)>0:
                 for k,v in keys.items():
-                    if v & p.KEY_WAS_TRIGGERED:
+                    if v & self.p.KEY_WAS_TRIGGERED:
                         if (k==ord('r')):
                             self.reset()
 
@@ -290,20 +297,20 @@ class PandaEnv(gym.Env):
 
     def reset_peg_in_hole(self):
         # soft pipe init
-        p.resetDebugVisualizerCamera(cameraDistance=1.5,cameraYaw=0,
+        self.p.resetDebugVisualizerCamera(cameraDistance=1.5,cameraYaw=0,
                                      cameraPitch=-40,cameraTargetPosition=[0.55,-0.35,0.2])
         state_object=[random.uniform(-0.2, 0.2), random.uniform(-0.4, -0.6), 0.11]# xyz
-        self.objectUid=p.loadURDF(os.path.join(os.path.dirname(os.path.realpath(__file__)),"assets/urdf/pipe.urdf"),
-                                  basePosition=state_object, baseOrientation=p.getQuaternionFromEuler([0, 0, 0]),
-			                      useFixedBase=0, flags=p.URDF_USE_SELF_COLLISION, globalScaling=0.01)
-        self.object_joints_num = p.getNumJoints(self.objectUid)
+        self.objectUid=self.p.loadURDF(os.path.join(os.path.dirname(os.path.realpath(__file__)),"assets/urdf/pipe.urdf"),
+                                  basePosition=state_object, baseOrientation=self.p.getQuaternionFromEuler([0, 0, 0]),
+			                      useFixedBase=0, flags=self.p.URDF_USE_SELF_COLLISION, globalScaling=0.01)
+        self.object_joints_num = self.p.getNumJoints(self.objectUid)
         for i in random.sample(range(self.object_joints_num), random.randint(5, self.object_joints_num)):
-            p.resetJointState(self.objectUid, i, random.uniform(0, math.pi / 3))
+            self.p.resetJointState(self.objectUid, i, random.uniform(0, math.pi / 3))
 
         # hole init
         self.hole_state = [0.5, -0.2, 0.2]
-        self.holeUid = p.loadURDF(os.path.join(os.path.dirname(os.path.realpath(__file__)),"assets/urdf/hole.urdf"), 
-                                  basePosition=self.hole_state, baseOrientation=p.getQuaternionFromEuler([0, 0, math.pi/2]),
+        self.holeUid = self.p.loadURDF(os.path.join(os.path.dirname(os.path.realpath(__file__)),"assets/urdf/hole.urdf"), 
+                                  basePosition=self.hole_state, baseOrientation=self.p.getQuaternionFromEuler([0, 0, math.pi/2]),
                                   useFixedBase=1, globalScaling=0.016)
         
         # grasp state init
@@ -323,12 +330,12 @@ class PandaEnv(gym.Env):
 
     # random fly scene
     def random_fly(self):
-        obj_pos = p.getBasePositionAndOrientation(self.objectUid)[0]
-        obj_vel, obj_w = p.getBaseVelocity(self.objectUid)[0:2]
+        obj_pos = self.p.getBasePositionAndOrientation(self.objectUid)[0]
+        obj_vel, obj_w = self.p.getBaseVelocity(self.objectUid)[0:2]
         if self.obs_delay:
             self.obs_delay_queue.put([obj_pos, obj_vel])
             obj_pos, obj_vel = self.obs_delay_queue.get()
-        base_info = p.getLinkState(self.pandaUid,self.pandaEndEffectorIndex,computeLinkVelocity=1)
+        base_info = self.p.getLinkState(self.pandaUid,self.pandaEndEffectorIndex,computeLinkVelocity=1)
         base_pos = base_info[0]
         base_vel = base_info[6]
         if (np.linalg.norm(np.array(obj_pos) - np.array(self.object_pos)) < 0.01 
@@ -346,7 +353,7 @@ class PandaEnv(gym.Env):
         vel_r  = -math.log(vel_bias) * 0.01
         move_r = 1 - math.exp(move_cst)
         use_time_r = False
-        if p.getContactPoints(self.pandaUid, self.objectUid, 8):
+        if self.p.getContactPoints(self.pandaUid, self.objectUid, 8):
             cli_r = 800 + (self.time_r if use_time_r else 0.)
             self.done=True
             success = True
@@ -365,7 +372,7 @@ class PandaEnv(gym.Env):
         return res, reward, success
 
     def reset_fly(self):
-        p.resetDebugVisualizerCamera(cameraDistance=10,cameraYaw=0,
+        self.p.resetDebugVisualizerCamera(cameraDistance=10,cameraYaw=0,
                                      cameraPitch=-0,cameraTargetPosition=[0,0,0])
         # normalize range
         self.normalize_range = [(-6,6), (-6,6), (-3,16),
@@ -383,19 +390,19 @@ class PandaEnv(gym.Env):
         y  = target_pos[1] - vy * t
         z  = target_pos[2] - (vz * t +  (self.gravity[2]) * t*t / 2)
         self.object_pos = [x, y, z]
-        base_orn = p.getQuaternionFromEuler([random.uniform(-math.pi, math.pi) for i in range(3)])
-        p.setAdditionalSearchPath(pybullet_data.getDataPath())
-        self.objectUid = p.loadURDF(os.path.join(os.path.dirname(os.path.realpath(__file__)),"assets/urdf/Amicelli_800_tex.urdf"),
+        base_orn = self.p.getQuaternionFromEuler([random.uniform(-math.pi, math.pi) for i in range(3)])
+        self.p.setAdditionalSearchPath(pybullet_data.getDataPath())
+        self.objectUid = self.p.loadURDF(os.path.join(os.path.dirname(os.path.realpath(__file__)),"assets/urdf/Amicelli_800_tex.urdf"),
                                     basePosition=self.object_pos, baseOrientation=base_orn,
                                     globalScaling=5)
-        p.changeDynamics(self.objectUid, -1, linearDamping=0, angularDamping=0)
-        p.resetBaseVelocity(self.objectUid, [vx,vy,vz])
+        self.p.changeDynamics(self.objectUid, -1, linearDamping=0, angularDamping=0)
+        self.p.resetBaseVelocity(self.objectUid, [vx,vy,vz])
 
-        p.addUserDebugLine([0,0,0], target_pos,lineColorRGB=[255,0,0], lineWidth=3)
+        self.p.addUserDebugLine([0,0,0], target_pos,lineColorRGB=[255,0,0], lineWidth=3)
 
-        obj_pos = p.getBasePositionAndOrientation(self.objectUid)[0]
-        obj_vel = p.getBaseVelocity(self.objectUid)[0]
-        base_info = p.getLinkState(self.pandaUid,11,computeLinkVelocity=1)
+        obj_pos = self.p.getBasePositionAndOrientation(self.objectUid)[0]
+        obj_vel = self.p.getBaseVelocity(self.objectUid)[0]
+        base_info = self.p.getLinkState(self.pandaUid,11,computeLinkVelocity=1)
         base_pos = base_info[0]
         base_vel = base_info[6]
         self.last_panda_pos = base_pos
@@ -410,7 +417,7 @@ class PandaEnv(gym.Env):
             i = 0
             while not self.obs_delay_queue.full():
                 i += 1
-                p.stepSimulation()
+                self.p.stepSimulation()
                 self.obs_delay_queue.put([obj_pos, obj_vel])
             obj_pos, obj_vel = self.obs_delay_queue.get()
         obs = list(obj_pos + obj_vel + base_pos + base_vel)
@@ -436,15 +443,15 @@ class PandaEnv(gym.Env):
 
     # 神经网络输入图像信息来进行训练
     def render(self,mode='human'):
-        panda_position =p.getLinkState(self.pandaUid, self.pandaEndEffectorIndex)[0]
-        # view_matrix=p.computeViewMatrixFromYawPitchRoll(cameraTargetPosition=[panda_position[0],
+        panda_position =self.p.getLinkState(self.pandaUid, self.pandaEndEffectorIndex)[0]
+        # view_matrix=self.p.computeViewMatrixFromYawPitchRoll(cameraTargetPosition=[panda_position[0],
         #                                                                       panda_position[1],
         #                                                                       panda_position[2]-0.5],
         #                                                 distance=.7,
         #                                                 yaw=0,
         #                                                 pitch=80,
         #                                                 roll=0,upAxisIndex=2)
-        view_matrix = p.computeViewMatrix(cameraEyePosition=[panda_position[0],
+        view_matrix = self.p.computeViewMatrix(cameraEyePosition=[panda_position[0],
                                                              panda_position[1],
                                                              panda_position[2]],
                                           cameraTargetPosition=[panda_position[0],
@@ -452,13 +459,13 @@ class PandaEnv(gym.Env):
                                                                 panda_position[2]-10],
                                           cameraUpVector=[0,1,0],          
         )
-        proj_matrix=p.computeProjectionMatrixFOV(fov=60,aspect=float(self.input_rgb_shape[1]/self.input_rgb_shape[0]),
+        proj_matrix=self.p.computeProjectionMatrixFOV(fov=60,aspect=float(self.input_rgb_shape[1]/self.input_rgb_shape[0]),
                                                  nearVal=0.001,
                                                  farVal=1000.0)
-        (_,_,r,d,_)=p.getCameraImage(width=self.input_rgb_shape[1],height=self.input_rgb_shape[0],
+        (_,_,r,d,_)=self.p.getCameraImage(width=self.input_rgb_shape[1],height=self.input_rgb_shape[0],
                                       viewMatrix=view_matrix,
                                       projectionMatrix=proj_matrix,
-                                      renderer=p.ER_TINY_RENDERER)
+                                      renderer=self.p.ER_TINY_RENDERER)
         rgb_array = np.array(r,dtype=np.uint8)
 
         dpt_array = np.array(d) #, dtype=np.uint8 # need fix
@@ -480,17 +487,17 @@ class PandaEnv(gym.Env):
 
 
     def reset(self):
-        p.resetSimulation()
-        p.configureDebugVisualizer(p.COV_ENABLE_RENDERING,0)
+        self.p.resetSimulation()
+        self.p.configureDebugVisualizer(self.p.COV_ENABLE_RENDERING,0)
         self.gravity = [0,0,-9.8]
-        p.setGravity(self.gravity[0], self.gravity[1], self.gravity[2])
+        self.p.setGravity(self.gravity[0], self.gravity[1], self.gravity[2])
 
-        p.setAdditionalSearchPath(pybullet_data.getDataPath())
+        self.p.setAdditionalSearchPath(pybullet_data.getDataPath())
         rest_poses=[0,-0.215,-math.pi/3,-2.57,0,2.356,2.356,0.08,0.08]
-        self.pandaUid=p.loadURDF("franka_panda/panda.urdf",baseOrientation=p.getQuaternionFromEuler([0, 0, -math.pi/2]),useFixedBase=True)
+        self.pandaUid=self.p.loadURDF("franka_panda/panda.urdf",baseOrientation=self.p.getQuaternionFromEuler([0, 0, -math.pi/2]),useFixedBase=True)
         for i in range(7):
-            p.resetJointState(self.pandaUid,i,rest_poses[i])
-        tableUid=p.loadURDF("table/table.urdf",basePosition=[0.0,-0.5,-1.3], baseOrientation=p.getQuaternionFromEuler([0, 0, math.pi/2]), globalScaling=2)
+            self.p.resetJointState(self.pandaUid,i,rest_poses[i])
+        tableUid=self.p.loadURDF("table/table.urdf",basePosition=[0.0,-0.5,-1.3], baseOrientation=self.p.getQuaternionFromEuler([0, 0, math.pi/2]), globalScaling=2)
 
         self.timeStep = 1./240
         self.cur_state = 0
@@ -498,10 +505,10 @@ class PandaEnv(gym.Env):
         self.state_t = 0
         self.stateDurations = [0.25]
 
-        state_robot=p.getLinkState(self.pandaUid,11)[0]
-        state_fingers=(p.getJointState(self.pandaUid,9)[0],p.getJointState(self.pandaUid,10)[0])
+        state_robot=self.p.getLinkState(self.pandaUid,11)[0]
+        state_fingers=(self.p.getJointState(self.pandaUid,9)[0],self.p.getJointState(self.pandaUid,10)[0])
         observation=state_robot+state_fingers
-        p.configureDebugVisualizer(p.COV_ENABLE_RENDERING,1)
+        self.p.configureDebugVisualizer(self.p.COV_ENABLE_RENDERING,1)
 
         # reset task
         self.done = False
@@ -515,7 +522,7 @@ class PandaEnv(gym.Env):
 
 
     def close(self):
-        p.disconnect()
+        self.p.disconnect()
 
 
 if __name__ == '__main__':

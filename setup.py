@@ -10,7 +10,7 @@ for root, dirs, files in os.walk(directory):
 
 setuptools.setup(
     name='peg-in-hole-gym',
-    version='0.0.1',
+    version='0.0.2',
     description='An gym env for simulating flexible tube grasp.',
     long_description=Path('README.md').read_text(),
     long_description_content_type='text/markdown',
