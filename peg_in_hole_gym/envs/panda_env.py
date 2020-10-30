@@ -338,14 +338,19 @@ class PandaEnv(gym.Env):
         base_info = self.p.getLinkState(self.pandaUid,self.pandaEndEffectorIndex,computeLinkVelocity=1)
         base_pos = base_info[0]
         base_vel = base_info[6]
-        if (np.linalg.norm(np.array(obj_pos) - np.array(self.object_pos)) < 0.01 
-           or (abs(obj_vel[0]) + abs(obj_vel[1])) < 1 
-           or obj_vel[2] < -15 
-           or np.linalg.norm(obj_w) > 0.5 
+        if (
+            # np.linalg.norm(np.array(obj_pos) - np.array(self.object_pos)) < 0.01 
+            # or (abs(obj_vel[0]) + abs(obj_vel[1])) < 1 
+            obj_vel[2] < -15 
+            or np.linalg.norm(obj_w) > 2 
            ):
             self.done = True
+            # print("why reset", np.linalg.norm(np.array(obj_pos) - np.array(self.object_pos)) < 0.01 
+            #         , obj_vel[2] < -15
+            #         , np.linalg.norm(obj_w) > 2)
         reward = 0.0
         success = False
+
         pos_bias = np.linalg.norm(np.array(base_pos) - np.array(obj_pos))
         vel_bias = np.linalg.norm(np.array(base_vel) - np.array(obj_vel))
         move_cst = np.linalg.norm(np.array(base_pos) - np.array(self.last_panda_pos))
@@ -353,10 +358,14 @@ class PandaEnv(gym.Env):
         vel_r  = -math.log(vel_bias) * 0.01
         move_r = 1 - math.exp(move_cst)
         use_time_r = False
+        if (
+            self.p.getContactPoints(self.pandaUid, self.objectUid, 8)
+            or (self.done and pos_bias < 0.4)
+           ):
+            success = True
         if self.p.getContactPoints(self.pandaUid, self.objectUid, 8):
             cli_r = 800 + (self.time_r if use_time_r else 0.)
             self.done=True
-            success = True
         else:
             cli_r = -0.5
         self.time_r -= 0.01
@@ -372,7 +381,7 @@ class PandaEnv(gym.Env):
         return res, reward, success
 
     def reset_fly(self):
-        self.p.resetDebugVisualizerCamera(cameraDistance=10,cameraYaw=0,
+        self.p.resetDebugVisualizerCamera(cameraDistance=5,cameraYaw=0,
                                      cameraPitch=-0,cameraTargetPosition=[0,0,0])
         # normalize range
         self.normalize_range = [(-6,6), (-6,6), (-3,16),
