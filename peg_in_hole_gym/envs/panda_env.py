@@ -134,7 +134,7 @@ class PandaEnv(gym.Env):
                     rr, cc = polygon(R, C, shape=self.output_shape)
                     pos_img[rr,cc] = 1.0
                     ang_img[rr,cc] = angle
-                    wid_img[rr,cc] = width
+                    wid_img[rr,cc] = width * self.output_shape[0]
                     # draw.polygon([(100,100), (100,200), (200, 200), (200,100)],outline=(255,0,0))
                     # draw.polygon([a,c,b,d], outline=25)
                     # img.show()
@@ -166,7 +166,7 @@ class PandaEnv(gym.Env):
         #         "result",np.linalg.norm(np.array(self.p.getLinkState(self.objectUid, self.grasp_joint_idx)[0])-
         #                             np.array(self.p.getBasePositionAndOrientation(self.holeUid)[0])),
         #         "q", q)
-        return [[pos_img, sin_img, cos_img, wid_img],[x,y,angle,width,length]], q
+        return [[pos_img, sin_img, cos_img, wid_img],[x,y,angle/math.pi*180.,width,length]], q
 
     def grasp_process(self, state, targetPos, targetOrn):
         currentPos = self.p.getLinkState(self.pandaUid, self.pandaEndEffectorIndex)[0]
