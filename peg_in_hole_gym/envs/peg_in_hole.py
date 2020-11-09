@@ -261,3 +261,33 @@ class PegInHole(object):
         self.input_rgb_shape = (300, 300, 3)
         self.input_dpt_shape = (300, 300)
         self.output_shape    = (300, 300)
+
+    def render(self):
+        panda_position =self.p.getLinkState(self.pandaUid, self.pandaEndEffectorIndex)[0]
+
+        view_matrix = self.p.computeViewMatrix(cameraEyePosition=[panda_position[0],
+                                                             panda_position[1],
+                                                             panda_position[2]],
+                                          cameraTargetPosition=[panda_position[0],
+                                                                panda_position[1],
+                                                                panda_position[2]-10],
+                                          cameraUpVector=[0,1,0],          
+        )
+        proj_matrix=self.p.computeProjectionMatrixFOV(fov=60,aspect=float(self.input_rgb_shape[1]/self.input_rgb_shape[0]),
+                                                 nearVal=0.001,
+                                                 farVal=1000.0)
+        (_,_,r,d,_)=self.p.getCameraImage(width=self.input_rgb_shape[1],height=self.input_rgb_shape[0],
+                                      viewMatrix=view_matrix,
+                                      projectionMatrix=proj_matrix,
+                                      renderer=self.p.ER_TINY_RENDERER)
+        rgb_array = np.array(r,dtype=np.uint8)
+
+        dpt_array = np.array(d)
+
+        rgb_array = rgb_array[:,:,:3]
+        res = np.concatenate(
+              (dpt_array.reshape((dpt_array.shape[0],dpt_array.shape[1],1)),
+               rgb_array),
+              2
+        )
+        return res
