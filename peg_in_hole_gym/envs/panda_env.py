@@ -9,77 +9,106 @@ import numpy as np
 from pybullet_utils.bullet_client import BulletClient
 from gym import spaces
 from queue import Queue
+from .peg_in_hole import PegInHole
+from .random_fly import RandomFly
+from .utils import test_mode, MultiAgentActionSpace, MultiAgentObservationSpace
 from PIL import Image, ImageDraw
-from skimage.draw import polygon
+
 from sklearn.preprocessing import MinMaxScaler
 
+task_list = {'peg-in-hole':PegInHole, 
+             'random-fly':RandomFly,
+            }
 
 class PandaEnv(gym.Env):
-    metadata = {'render.modes':['human']}
-    def __init__(self, client, task='peg-in-hole', is_test=False):
-        assert task in ['peg-in-hole', 'random-fly']
+    metadata = {'render.modes':['human', 'rgb_array']}
+    def __init__(self, client, task='peg-in-hole', task_num = 1, offset = [0,0,0], is_test=False):
+        assert task in task_list
         self.task = task
-        self.client = client
+        self.task_num = task_num
+        self.offset = offset
+        self.sub_env = task_list[self.task]
+        # self.client = client
         self.p = BulletClient(client)
         # self.p.connect(self.client)
         self.p.resetDebugVisualizerCamera(cameraDistance=1.5,cameraYaw=0,
                                      cameraPitch=-40,cameraTargetPosition=[0.55,-0.35,0.2])
-        if self.task == "random-fly":
-            self.action_space=spaces.Box(np.array([-1]*3),np.array([1]*3)) # 末端3维信息
-            self.observation_space = spaces.Box(np.array([-1]*12), np.array([1]*12)) # [物体位置+速度 末端位置+速度]
-        else:
-            self.action_space=spaces.Box(np.array([-1]*4),np.array([1]*4)) # 末端3维信息+手指1维 (默认朝下)
-            self.observation_space=spaces.Box(np.array([-1]*5),np.array([1]*5)) # [夹爪1值 夹爪2值 末端位置x y z]
+        self.sub_envs = []
+        for i in range(task_num): 
+            # offset set
+            offset = np.array(self.offset) * i
+            self.sub_envs.append(self.sub_env(self.p, offset))
+
+
+        self.action_space = MultiAgentActionSpace([self.sub_env.action_space for i in range(task_num)])
+        self.observation_space = MultiAgentObservationSpace([self.sub_env.observation_space for i in range(task_num)])
+        
+        # if self.task == "random-fly":
+        #     self.action_space=spaces.Box(np.array([-1]*3),np.array([1]*3)) # 末端3维信息
+        #     self.observation_space = spaces.Box(np.array([-1]*12), np.array([1]*12)) # [物体位置+速度 末端位置+速度]
+        # else:
+        #     self.action_space=spaces.Box(np.array([-1]*4),np.array([1]*4)) # 末端3维信息+手指1维 (默认朝下)
+        #     self.observation_space=spaces.Box(np.array([-1]*5),np.array([1]*5)) # [夹爪1值 夹爪2值 末端位置x y z]
         
         # test_mode
         self.is_test = is_test
 
-        # panda init
-        self.pandaUid = 0
-        self.pandaEndEffectorIndex = 11
-        self.pandaNumDofs = 7
+        # # panda init
+        # self.pandaUid = 0
+        # self.pandaEndEffectorIndex = 11
+        # self.pandaNumDofs = 7
         
-        self.reset()
+        # self.reset()
 
 
     # 机械臂根据action执行动作，通过calculateInverseKinematics解算关节位置
     def step(self,action):
         # excute
-        if self.task != 'peg-in-hole':
-            self.p.configureDebugVisualizer(self.p.COV_ENABLE_SINGLE_STEP_RENDERING)
-            orientation=self.p.getQuaternionFromEuler([0.,-math.pi,math.pi/2.])
-            dv=0.3
-            dx=action[0]*dv
-            dy=action[1]*dv
-            dz=action[2]*dv
-            fingers=[] if self.task == 'random-fly' else action[3]
+        # if self.task != 'peg-in-hole':
+        #     self.p.configureDebugVisualizer(self.p.COV_ENABLE_SINGLE_STEP_RENDERING)
+        #     orientation=self.p.getQuaternionFromEuler([0.,-math.pi,math.pi/2.])
+        #     dv=0.3
+        #     dx=action[0]*dv
+        #     dy=action[1]*dv
+        #     dz=action[2]*dv
+        #     fingers=[] if self.task == 'random-fly' else action[3]
 
-            currentPose=self.p.getLinkState(self.pandaUid,11)
-            currentPosition=currentPose[0]
-            newPosition=[currentPosition[0]+dx,
-                         currentPosition[1]+dy,
-                         currentPosition[2]+dz]
-            jointPoses=self.p.calculateInverseKinematics(self.pandaUid,self.pandaEndEffectorIndex,newPosition,orientation)[0:7]
-            if self.task == 'random-fly':
-                self.p.setJointMotorControlArray(self.pandaUid,list(range(self.pandaNumDofs)),self.p.POSITION_CONTROL,list(jointPoses))
-            else:
-                self.p.setJointMotorControlArray(self.pandaUid,list(range(self.pandaNumDofs))+[9,10],self.p.POSITION_CONTROL,list(jointPoses)+2*[fingers])
-            self.p.stepSimulation()
+        #     currentPose=self.p.getLinkState(self.pandaUid,11)
+        #     currentPosition=currentPose[0]
+        #     newPosition=[currentPosition[0]+dx,
+        #                  currentPosition[1]+dy,
+        #                  currentPosition[2]+dz]
+        #     jointPoses=self.p.calculateInverseKinematics(self.pandaUid,self.pandaEndEffectorIndex,newPosition,orientation)[0:7]
+        #     if self.task == 'random-fly':
+        #         self.p.setJointMotorControlArray(self.pandaUid,list(range(self.pandaNumDofs)),self.p.POSITION_CONTROL,list(jointPoses))
+        #     else:
+        #         self.p.setJointMotorControlArray(self.pandaUid,list(range(self.pandaNumDofs))+[9,10],self.p.POSITION_CONTROL,list(jointPoses)+2*[fingers])
+        #     self.p.stepSimulation()
 
         # observation
-        observation = []
-        reward = 0
-        done = self.done
-        info = {}
-        if self.task == 'peg-in-hole':
-            info, reward = self.random_grasp()
-            observation = self.grasp_img
-        if self.task == 'random-fly':
-            observation, reward, success = self.random_fly()
-            info['success'] = success
+        # observation = []
+        # reward = 0
+        # done = self.done
+        # info = {}
+        # if self.task == 'peg-in-hole':
+        #     info, reward = self.random_grasp()
+        #     observation = self.grasp_img
+        # if self.task == 'random-fly':
+        #     observation, reward, success = self.random_fly()
+        #     info['success'] = success
+        observations = []
+        rewards = []
+        infos = []
+        for i in range(self.task_num):
+            observation, reward, done, info = self.sub_envs[i].step()
+            observations.append(observation)
+            rewards.append(reward)
+            self.dones[i] = done
+            infos.append(info)
+        all_done = all(self.dones)
         # quick reset for test
-        self.test_mode()
-        return observation, reward, done, info
+        test_mode('r', self.reset)
+        return observations, rewards, all_done, infos
 
 
     # peg-in-hole scene
@@ -451,7 +480,7 @@ class PandaEnv(gym.Env):
 
 
     # 神经网络输入图像信息来进行训练
-    def render(self,mode='human'):
+    def render(self,mode='rgb_array'):
         panda_position =self.p.getLinkState(self.pandaUid, self.pandaEndEffectorIndex)[0]
         # view_matrix=self.p.computeViewMatrixFromYawPitchRoll(cameraTargetPosition=[panda_position[0],
         #                                                                       panda_position[1],
@@ -497,37 +526,40 @@ class PandaEnv(gym.Env):
 
     def reset(self):
         self.p.resetSimulation()
-        self.p.configureDebugVisualizer(self.p.COV_ENABLE_RENDERING,0)
-        self.gravity = [0,0,-9.8]
-        self.p.setGravity(self.gravity[0], self.gravity[1], self.gravity[2])
+        # self.p.configureDebugVisualizer(self.p.COV_ENABLE_RENDERING,0)
+        # self.gravity = [0,0,-9.8]
+        # self.p.setGravity(self.gravity[0], self.gravity[1], self.gravity[2])
 
-        self.p.setAdditionalSearchPath(pybullet_data.getDataPath())
-        rest_poses=[0,-0.215,-math.pi/3,-2.57,0,2.356,2.356,0.08,0.08]
-        self.pandaUid=self.p.loadURDF("franka_panda/panda.urdf",baseOrientation=self.p.getQuaternionFromEuler([0, 0, -math.pi/2]),useFixedBase=True)
-        for i in range(7):
-            self.p.resetJointState(self.pandaUid,i,rest_poses[i])
-        tableUid=self.p.loadURDF("table/table.urdf",basePosition=[0.0,-0.5,-1.3], baseOrientation=self.p.getQuaternionFromEuler([0, 0, math.pi/2]), globalScaling=2)
+        # self.p.setAdditionalSearchPath(pybullet_data.getDataPath())
+        # rest_poses=[0,-0.215,-math.pi/3,-2.57,0,2.356,2.356,0.08,0.08]
+        # self.pandaUid=self.p.loadURDF("franka_panda/panda.urdf",baseOrientation=self.p.getQuaternionFromEuler([0, 0, -math.pi/2]),useFixedBase=True)
+        # for i in range(7):
+        #     self.p.resetJointState(self.pandaUid,i,rest_poses[i])
+        # tableUid=self.p.loadURDF("table/table.urdf",basePosition=[0.0,-0.5,-1.3], baseOrientation=self.p.getQuaternionFromEuler([0, 0, math.pi/2]), globalScaling=2)
 
-        self.timeStep = 1./240
-        self.cur_state = 0
-        self.last_state = 0
-        self.state_t = 0
-        self.stateDurations = [0.25]
+        # self.timeStep = 1./240
+        # self.cur_state = 0
+        # self.last_state = 0
+        # self.state_t = 0
+        # self.stateDurations = [0.25]
 
-        state_robot=self.p.getLinkState(self.pandaUid,11)[0]
-        state_fingers=(self.p.getJointState(self.pandaUid,9)[0],self.p.getJointState(self.pandaUid,10)[0])
-        observation=state_robot+state_fingers
-        self.p.configureDebugVisualizer(self.p.COV_ENABLE_RENDERING,1)
+        # state_robot=self.p.getLinkState(self.pandaUid,11)[0]
+        # state_fingers=(self.p.getJointState(self.pandaUid,9)[0],self.p.getJointState(self.pandaUid,10)[0])
+        # observation=state_robot+state_fingers
+        # self.p.configureDebugVisualizer(self.p.COV_ENABLE_RENDERING,1)
 
         # reset task
-        self.done = False
-        if self.task == 'peg-in-hole':
-            self.reset_peg_in_hole()
-            observation = self.render()
-        if self.task == 'random-fly':
-            observation = self.reset_fly()
+        self.dones = [False for _ in range(self.task_num)]
+        observations = []
+        for i in range(self.task_num):
+            observations.append(self.sub_envs[i].reset())
+        # if self.task == 'peg-in-hole':
+        #     self.reset_peg_in_hole()
+        #     observation = self.render()
+        # if self.task == 'random-fly':
+        #     observation = self.reset_fly()
             
-        return observation
+        return observations
 
 
     def close(self):
