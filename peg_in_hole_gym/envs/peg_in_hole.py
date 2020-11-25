@@ -2,12 +2,11 @@ import os
 import math
 import time
 import random
-# import pybullet as p
-import pybullet_data
 import numpy as np
 from gym import spaces
+from .utils import reset_panda
 from skimage.draw import polygon
-from pybullet_utils.bullet_client import BulletClient
+# from PIL import Image, ImageDraw
 
 class PegInHole(object):
     action_space=spaces.Box(np.array([-1]*4),np.array([1]*4)) # 末端3维信息+手指1维 (默认朝下)
@@ -15,8 +14,6 @@ class PegInHole(object):
     def __init__(self, client, offset=[0,0,0]):
         self.offset = np.array(offset)
         self.p = client
-        # self.action_space=spaces.Box(np.array([-1]*4),np.array([1]*4)) # 末端3维信息+手指1维 (默认朝下)
-        # self.observation_space=spaces.Box(np.array([-1]*5),np.array([1]*5)) # [夹爪1值 夹爪2值 末端位置x y z]
 
         # panda init
         self.pandaUid = 0
@@ -30,7 +27,7 @@ class PegInHole(object):
 
         # self.reset()
 
-    def step(self):
+    def step(self, action):
         info, reward = self.random_grasp()
         observation = self.grasp_img
         done = self.done
@@ -66,9 +63,6 @@ class PegInHole(object):
                 # capture the grasp img
                 if self.cur_state == 2:
                     self.grasp_img = self.render()
-                    # projection on x-y plain
-                    # pos = self.p.getLinkState(self.objectUid, self.grasp_joint_idx)[0]
-                    # pos = [pos[0], pos[1]]
                     camera_pos = self.p.getLinkState(self.pandaUid, self.pandaEndEffectorIndex)[0]
                     camera_pos = [camera_pos[0], camera_pos[1]]
                     relative_pos = [(targetPos[0] - camera_pos[0])*self.input_rgb_shape[0], (targetPos[1] - camera_pos[1])*self.input_rgb_shape[1]]
@@ -78,7 +72,7 @@ class PegInHole(object):
                     width = 0.2
                     # img = Image.fromarray(pos_img)
                     # draw = ImageDraw.Draw(img)
-                    # draw.line([(0,0), ((0.5+relative_pos[0])*self.input_rgb_shape[0], (0.5+relative_pos[1])*self.input_rgb_shape[1])], fill=(255,0,0))
+                    # draw.line([(0,0), ((0.5+relative_pos[0])*self.input_rgb_shape[0], (0.5+relative_pos[1])*self.input_rgb_shape[1])], fill=100)
                     a = ( (1. + length * math.cos(angle) + width * math.sin(angle)) / 2 * self.output_shape[0], (1. - length * math.sin(angle) + width * math.cos(angle)) / 2 * self.output_shape[1])
                     b = ( (1. - length * math.cos(angle) - width * math.sin(angle)) / 2 * self.output_shape[0], (1. + length * math.sin(angle) - width * math.cos(angle)) / 2 * self.output_shape[1])
                     c = ( (1. - length * math.cos(angle) + width * math.sin(angle)) / 2 * self.output_shape[0], (1. + length * math.sin(angle) + width * math.cos(angle)) / 2 * self.output_shape[1])
@@ -89,7 +83,6 @@ class PegInHole(object):
                     pos_img[rr,cc] = 1.0
                     ang_img[rr,cc] = angle
                     wid_img[rr,cc] = width * self.output_shape[0]
-                    # draw.polygon([(100,100), (100,200), (200, 200), (200,100)],outline=(255,0,0))
                     # draw.polygon([a,c,b,d], outline=25)
                     # img.show()
                     # cos_o = targetPos[0]/math.sqrt(targetPos[0]*targetPos[0] + targetPos[1]*targetPos[1])
@@ -111,16 +104,11 @@ class PegInHole(object):
                 pass
             self.last_state = self.cur_state
 
-        # self.done = False
         threshold = 0.05 # test result
         q = 1. if np.linalg.norm(np.array(self.p.getLinkState(self.objectUid, self.grasp_joint_idx)[0])-
                                  np.array(self.p.getBasePositionAndOrientation(self.holeUid)[0])) < threshold \
                else 0.
-        # if self.is_test:
-        #     print("rawPos", self.p.getLinkState(self.objectUid, self.grasp_joint_idx)[0], "holePos", self.p.getBasePositionAndOrientation(self.holeUid)[0],
-        #         "result",np.linalg.norm(np.array(self.p.getLinkState(self.objectUid, self.grasp_joint_idx)[0])-
-        #                             np.array(self.p.getBasePositionAndOrientation(self.holeUid)[0])),
-        #         "q", q)
+
         return [[pos_img, sin_img, cos_img, wid_img],[x,y,angle/math.pi*180.,width,length]], q
         # return self.grasp_img, q, self.done, [[pos_img, sin_img, cos_img, wid_img],[x,y,angle/math.pi*180.,width,length]]
 
@@ -215,16 +203,6 @@ class PegInHole(object):
             self.state_t = 0
             if self.cur_state >= len(self.stateDurations):
                 self.cur_state = 0
-        
-
-    # def test_mode(self):    
-    #     if self.is_test:
-    #         keys = self.p.getKeyboardEvents()
-    #         if len(keys)>0:
-    #             for k,v in keys.items():
-    #                 if v & self.p.KEY_WAS_TRIGGERED:
-    #                     if (k==ord('r')):
-    #                         self.reset()
 
     def smooth_vel(self, cur, tar):
         res = []
@@ -251,26 +229,18 @@ class PegInHole(object):
         return vec.tolist()
 
     def reset(self):
-        # self.p.resetSimulation()
         flags = self.p.URDF_ENABLE_CACHED_GRAPHICS_SHAPES
         self.p.configureDebugVisualizer(self.p.COV_ENABLE_RENDERING,1)        
         self.gravity = [0,0,-9.8]
         self.p.setGravity(self.gravity[0], self.gravity[1], self.gravity[2])
 
-        self.p.setAdditionalSearchPath(pybullet_data.getDataPath())
         rest_poses=[0,-0.215,-math.pi/3,-2.57,0,2.356,2.356,0.08,0.08]
-        self.pandaUid=self.p.loadURDF("franka_panda/panda.urdf",basePosition=np.array([0.,0.,0.])+self.offset,
-                                      baseOrientation=self.p.getQuaternionFromEuler([0, 0, -math.pi/2]),useFixedBase=True,
-                                      flags=flags)
-        for i in range(7):
-            self.p.resetJointState(self.pandaUid,i,rest_poses[i])
-        tableUid=self.p.loadURDF("table/table.urdf",basePosition=np.array([0.0,-0.5,-1.3])+self.offset, 
-                                 baseOrientation=self.p.getQuaternionFromEuler([0, 0, math.pi/2]), globalScaling=2,
-                                 flags=flags)
-        # soft pipe init
-        # self.p.resetDebugVisualizerCamera(cameraDistance=1.5,cameraYaw=0,
-        #                              cameraPitch=-40,cameraTargetPosition=[0.55+self.offset[0],-0.35+self.offset[1],0.2+self.offset[2]])
-        state_object=[random.uniform(-0.2, 0.2)+self.offset[0], random.uniform(-0.4, -0.6)+self.offset[1], 0.11+self.offset[2]]# xyz
+        panda_base_pose = np.array([0.,0.,0.])+self.offset
+        table_base_pose = np.array([0.0,-0.5,-1.3])+self.offset
+        self.pandaUid, _ = reset_panda(self.p, panda_base_pose, rest_poses, table_base_pose, flags)
+
+        # pipe init
+        state_object=[random.uniform(-0.2, 0.2)+self.offset[0], random.uniform(-0.4, -0.6)+self.offset[1], 0.11+self.offset[2]] # xyz
         self.objectUid=self.p.loadURDF(os.path.join(os.path.dirname(os.path.realpath(__file__)),"assets/urdf/pipe.urdf"),
                                   basePosition=state_object, baseOrientation=self.p.getQuaternionFromEuler([0, 0, 0]),
 			                      useFixedBase=0, flags=self.p.URDF_USE_SELF_COLLISION+flags, globalScaling=0.01)

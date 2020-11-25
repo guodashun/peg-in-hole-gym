@@ -1,6 +1,6 @@
 from multiprocessing.connection import Client
 from os import pardir
-from panda_env import PandaEnv
+from .panda_env import PandaEnv
 import pybullet as p
 import multiprocessing as mp
 # from pybullet_utils.bullet_client import BulletClient
