@@ -277,7 +277,7 @@ class PegInHole(object):
 
         return []
 
-    def render(self):
+    def render(self, mode='rgb_array'):
         panda_position =self.p.getLinkState(self.pandaUid, self.pandaEndEffectorIndex)[0]
 
         view_matrix = self.p.computeViewMatrix(cameraEyePosition=[panda_position[0],

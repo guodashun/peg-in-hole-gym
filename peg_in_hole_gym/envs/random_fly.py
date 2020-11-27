@@ -161,3 +161,6 @@ class RandomFly(object):
         z = math.sqrt(length*length - x*x - y*y) + 0.2
         res = np.array([x,y,z]) + self.offset
         return res
+
+    def render(self, mode='rgb_array'):
+        pass
