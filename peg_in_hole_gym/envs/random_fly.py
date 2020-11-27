@@ -111,8 +111,8 @@ class RandomFly(object):
         t  = abs((target_pos[0] - x) / vx)
         vy = random.uniform(4,6) * random.choice([-1., 1.])
         vz = random.randint(-2,5)
-        y  = target_pos[1] - vy * t + self.offset[1]
-        z  = target_pos[2] - (vz * t +  (self.gravity[2]) * t*t / 2) + self.offset[2]
+        y  = target_pos[1] - vy * t
+        z  = target_pos[2] - (vz * t +  (self.gravity[2]) * t*t / 2)
         self.object_pos = [x, y, z]
         base_orn = self.p.getQuaternionFromEuler([random.uniform(-math.pi, math.pi) for i in range(3)])
         self.objectUid = self.p.loadURDF(os.path.join(os.path.dirname(os.path.realpath(__file__)),"assets/urdf/Amicelli_800_tex.urdf"),

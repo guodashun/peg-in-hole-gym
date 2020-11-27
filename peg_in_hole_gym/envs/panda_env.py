@@ -1,12 +1,14 @@
 import pybullet as p
 import gym
+import math
 import numpy as np
 from pybullet_utils.bullet_client import BulletClient
 from .peg_in_hole import PegInHole
 from .random_fly import RandomFly
 from .utils import test_mode, MultiAgentActionSpace, MultiAgentObservationSpace
 
-task_list = {'peg-in-hole':PegInHole, 
+task_list = {
+             'peg-in-hole':PegInHole, 
              'random-fly':RandomFly,
             }
 
@@ -14,25 +16,42 @@ class PandaEnv(gym.Env):
     metadata = {'render.modes':['human', 'rgb_array']}
     def __init__(self, client, task='peg-in-hole', task_num = 1, offset = [0,0,0], is_test=False):
         assert task in task_list
+        assert (task_num > 1 and offset != [0,0,0])
         self.task = task
         self.task_num = task_num
         self.offset = offset
         self.sub_env = task_list[self.task]
-        # self.client = client
         self.p = BulletClient(client)
         self.p.resetDebugVisualizerCamera(cameraDistance=1.5,cameraYaw=0,
                                      cameraPitch=-40,cameraTargetPosition=[0.55,-0.35,0.2])
         self.sub_envs = []
-        for i in range(task_num): 
-            # offset set
-            offset = np.array(self.offset) * i
-            self.sub_envs.append(self.sub_env(self.p, offset))
+        self._create_env()
 
         self.action_space = MultiAgentActionSpace([self.sub_env.action_space for i in range(task_num)])
         self.observation_space = MultiAgentObservationSpace([self.sub_env.observation_space for i in range(task_num)])
         
         # test_mode
         self.is_test = is_test
+
+    def _create_env(self):
+        if self.offset[0] == 0 or self.offset[1] == 0:
+            for i in range(self.task_num):
+                offset = np.array(self.offset) * i
+                self.sub_envs.append(self.sub_env(self.p, offset))
+            return
+        else:
+            env_num = 0
+            sqrt_num = int(math.ceil(math.sqrt(self.task_num)))
+            # offset set
+            stepX = self.offset[0]
+            stepY = self.offset[1]
+            for i in range(sqrt_num):
+                for j in range(sqrt_num):
+                    offset = np.array([stepX*i, stepY*j, self.offset[2]])
+                    self.sub_envs.append(self.sub_env(self.p, offset))
+                    env_num += 1
+                    if env_num >= self.task_num:
+                        return
 
 
     # 机械臂根据action执行动作，通过calculateInverseKinematics解算关节位置

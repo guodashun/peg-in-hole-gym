@@ -1,6 +1,6 @@
 # peg-in-hole-gym
 
-gym env for multi-task simulation with Panda robotic arm engined by pybullet
+Gym env for multi-task simulation with Panda robotic arm engined by pybullet
 
 ## Task List
 
@@ -12,6 +12,11 @@ gym env for multi-task simulation with Panda robotic arm engined by pybullet
 
   ![random-fly](./img/random-fly.gif)
 
+## Features
+
+- multi-agent in one simulation
+- multi-simulation with multiprocessing
+
 ## Installation
 
 ```bash
@@ -22,24 +27,25 @@ $ pip install -e .
 
 ## Usage
 
-##### Initial the environment
+##### Initial the environment(e.g. random-fly)
 
 ```python
 import gym
+import pybullet as p
 import peg_in_hole_gym
 
-env = gym.make('peg-in-hole-v0')
-env.render()
+env = gym.make('peg-in-hole-v0', client=p.GUI, task='random-fly')
 env.reset()
+env.render()
 ```
 
-##### Perform a task(e.g. random fly)
+##### Perform a task
 
 ```python
-env.reset_fly()
+obs = env.reset()
 while True:
+    obs, reward, done, info = env.step(env.action_space.sample())
 	time.sleep(0.01)
-	p.stepSimulation()
 ```
 
 ## Reference
