@@ -79,10 +79,13 @@ class PegInHole(object):
                     d = ( (1. + length * math.cos(angle) - width * math.sin(angle)) / 2 * self.output_shape[0], (1. - length * math.sin(angle) - width * math.cos(angle)) / 2 * self.output_shape[1])
                     R = [a[0], b[0], c[0], d[0]]
                     C = [a[1], b[1], c[1], d[0]]
+                    # calculate real length in pic
+                    width = np.linalg.norm(np.array(a)-np.array(b))
+                    length = np.linalg.norm(np.array(a)-np.array(c))
                     rr, cc = polygon(R, C, shape=self.output_shape)
                     pos_img[rr,cc] = 1.0
                     ang_img[rr,cc] = angle
-                    wid_img[rr,cc] = width * self.output_shape[0]
+                    wid_img[rr,cc] = width
                     # draw.polygon([a,c,b,d], outline=25)
                     # img.show()
                     # cos_o = targetPos[0]/math.sqrt(targetPos[0]*targetPos[0] + targetPos[1]*targetPos[1])
