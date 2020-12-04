@@ -11,7 +11,7 @@ class PandaEnvMp(gym.Env):
     STEP = 2
     RENDER = 3
     
-    def __init__(self, client, task, mp_num=1, sub_num=1, offset=[0,0,0], is_test=False):
+    def __init__(self, client, task, mp_num=1, sub_num=1, offset=[0,0,0], args=None, is_test=False):
         if client == p.GUI:
             print("Warning! GUI mode is not supported in this env.")
             print("Auto switch to DIRECT mode.")
@@ -24,7 +24,7 @@ class PandaEnvMp(gym.Env):
         self.res_queues = []
         self.processes = []
         for i in range(self.mp_num):    
-            self.clients.append(PandaEnv(client, task, self.sub_num, offset, is_test))
+            self.clients.append(PandaEnv(client, task, self.sub_num, offset, args, is_test))
             msg_queue = Queue(1)
             res_queue = Queue(1)
             self.msg_queues.append(msg_queue)

@@ -14,12 +14,13 @@ task_list = {
 
 class PandaEnv(gym.Env):
     metadata = {'render.modes':['human', 'rgb_array']}
-    def __init__(self, client, task='peg-in-hole', task_num = 1, offset = [0,0,0], is_test=False):
+    def __init__(self, client, task='peg-in-hole', task_num = 1, offset = [0,0,0], args=None, is_test=False):
         assert task in task_list
         assert (task_num == 1 or (task_num > 1 and offset != [0,0,0]))
         self.task = task
         self.task_num = task_num
         self.offset = offset
+        self.args = args
         self.sub_env = task_list[self.task]
         self.p = BulletClient(client)
         self.p.resetDebugVisualizerCamera(cameraDistance=1.5,cameraYaw=0,
@@ -48,7 +49,7 @@ class PandaEnv(gym.Env):
             for i in range(sqrt_num):
                 for j in range(sqrt_num):
                     offset = np.array([stepX*i, stepY*j, self.offset[2]])
-                    self.sub_envs.append(self.sub_env(self.p, offset))
+                    self.sub_envs.append(self.sub_env(self.p, offset, self.args))
                     env_num += 1
                     if env_num >= self.task_num:
                         return

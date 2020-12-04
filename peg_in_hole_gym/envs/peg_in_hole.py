@@ -11,7 +11,7 @@ from skimage.draw import polygon
 class PegInHole(object):
     action_space=spaces.Box(np.array([-1]*4),np.array([1]*4)) # 末端3维信息+手指1维 (默认朝下)
     observation_space=spaces.Box(np.array([-1]*5),np.array([1]*5)) # [夹爪1值 夹爪2值 末端位置x y z]
-    def __init__(self, client, offset=[0,0,0]):
+    def __init__(self, client, offset=[0,0,0], args=None):
         self.offset = np.array(offset)
         self.p = client
 
