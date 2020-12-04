@@ -16,7 +16,7 @@ class PandaEnv(gym.Env):
     metadata = {'render.modes':['human', 'rgb_array']}
     def __init__(self, client, task='peg-in-hole', task_num = 1, offset = [0,0,0], is_test=False):
         assert task in task_list
-        assert (task_num > 1 and offset != [0,0,0])
+        assert (task_num == 1 or (task_num > 1 and offset != [0,0,0]))
         self.task = task
         self.task_num = task_num
         self.offset = offset
