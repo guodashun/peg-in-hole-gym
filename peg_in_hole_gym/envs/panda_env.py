@@ -35,10 +35,12 @@ class PandaEnv(gym.Env):
         self.is_test = is_test
 
     def _create_env(self):
+        # offset分两种情况，当只有x或y方向的offset时，只给直线方向
+        # 否则平均分配xy方向的数量
         if self.offset[0] == 0 or self.offset[1] == 0:
             for i in range(self.task_num):
                 offset = np.array(self.offset) * i
-                self.sub_envs.append(self.sub_env(self.p, offset))
+                self.sub_envs.append(self.sub_env(self.p, offset, self.args))
             return
         else:
             env_num = 0
