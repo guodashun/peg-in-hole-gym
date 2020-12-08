@@ -1,5 +1,5 @@
 # py_cache
-__pycache/
+*__pycache__/
 *.pyc
 *.egg-info
 
@@ -12,3 +12,8 @@ test.*
 # backup
 backup/
 
+# model
+peg_in_hole_gym/envs/assets/lstm/data/*
+peg_in_hole_gym/envs/assets/lstm/output/*
+!peg_in_hole_gym/envs/assets/lstm/data/.keep
+!peg_in_hole_gym/envs/assets/lstm/output/.keep

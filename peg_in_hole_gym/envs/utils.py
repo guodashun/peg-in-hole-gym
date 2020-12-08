@@ -34,7 +34,7 @@ def reset_panda(client, panda_pos, panda_orn, table_pos, flags):
 def panda_execute(client, panda_id, action, pandaEndEffectorIndex, pandaNumDofs):
     client.configureDebugVisualizer(client.COV_ENABLE_SINGLE_STEP_RENDERING)
     orientation=client.getQuaternionFromEuler([0.,-math.pi,math.pi/2.])
-    dv=0.3
+    dv=0.1
     dx=action[0]*dv
     dy=action[1]*dv
     dz=action[2]*dv
