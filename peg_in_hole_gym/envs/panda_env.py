@@ -5,11 +5,13 @@ import numpy as np
 from pybullet_utils.bullet_client import BulletClient
 from .peg_in_hole import PegInHole
 from .random_fly import RandomFly
+from .real_fly import RealFly
 from .utils import test_mode, MultiAgentActionSpace, MultiAgentObservationSpace
 
 task_list = {
              'peg-in-hole':PegInHole, 
              'random-fly':RandomFly,
+             'real-fly':RealFly
             }
 
 class PandaEnv(gym.Env):

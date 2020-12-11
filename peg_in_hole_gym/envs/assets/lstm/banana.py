@@ -192,7 +192,7 @@ def pos_vel_filter(x, P, R, Q=0., dt=1.0):
     #     print(kf)
     return kf
 
-def load_data(npz_name):
+def load_data(npz_name)-> np.ndarray:
     print("Loading data {}...".format(npz_name))
     # flight_data = []
     # flight_name = []
@@ -225,7 +225,7 @@ def load_data(npz_name):
     return data_append #, flight_name
 
 
-def get_lstm_pre_data(flight_data, flight_name, dat_min, dat_mm, pred_start=40, verbose=False):
+def get_lstm_pre_data(flight_data, flight_name, dat_min, dat_mm, pred_start=40, verbose=False)-> np.ndarray:
     model = ED_LSTM_3()
     device = torch.device("cuda:0")
     cur_dir = os.path.abspath(os.path.dirname(__file__))

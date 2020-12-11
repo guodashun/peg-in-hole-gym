@@ -4,7 +4,7 @@ import time
 import random
 import numpy as np
 from gym import spaces
-from .utils import reset_panda
+from .utils import init_panda
 from skimage.draw import polygon
 # from PIL import Image, ImageDraw
 
@@ -240,7 +240,7 @@ class PegInHole(object):
         rest_poses=[0,-0.215,-math.pi/3,-2.57,0,2.356,2.356,0.08,0.08]
         panda_base_pose = np.array([0.,0.,0.])+self.offset
         table_base_pose = np.array([0.0,-0.5,-1.3])+self.offset
-        self.pandaUid, _ = reset_panda(self.p, panda_base_pose, rest_poses, table_base_pose, flags)
+        self.pandaUid, _ = init_panda(self.p, panda_base_pose, rest_poses, table_base_pose, flags)
 
         # pipe init
         state_object=[random.uniform(-0.2, 0.2)+self.offset[0], random.uniform(-0.4, -0.6)+self.offset[1], 0.11+self.offset[2]] # xyz

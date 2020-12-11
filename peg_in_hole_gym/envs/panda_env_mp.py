@@ -13,7 +13,7 @@ class PandaEnvMp(gym.Env):
     
     def __init__(self, client, task, mp_num=1, sub_num=1, offset=[0,0,0], args=None, is_test=False):
         if client == p.GUI:
-            print("Warning! GUI mode is not supported in this env.")
+            print("Warning: GUI mode is not supported in this env.")
             print("Auto switch to DIRECT mode.")
             client = p.DIRECT
         self.mp_num = mp_num
