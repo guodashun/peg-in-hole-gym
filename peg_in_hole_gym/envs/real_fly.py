@@ -56,7 +56,7 @@ class RealFly(object):
         base_orn = self.p.getQuaternionFromEuler([random.uniform(-math.pi, math.pi) for i in range(3)])
         self.objectUid = self.p.loadURDF(os.path.join(os.path.dirname(os.path.realpath(__file__)),"assets/urdf/Amicelli_800_tex.urdf"),
                             basePosition=np.array([0,0,10])+self.offset, baseOrientation=base_orn,
-                            globalScaling=5)
+                            globalScaling=3)
         self.p.changeDynamics(self.objectUid, -1, linearDamping=0, angularDamping=0)
         
         # done
@@ -125,7 +125,6 @@ class RealFly(object):
                 self.p.resetBaseVelocity(self.objectUid, self.object_real_traj[j+start_time, 3:6])
                 self.p.resetBasePositionAndOrientation(self.objectUid, self.object_real_traj[j+start_time, 0:3], self.object_real_traj[j+start_time, 9:13])
                 self.p.stepSimulation()
-                self.p.addUserDebugLine([0,0,0], pre_data[-1][:3], [0,255,0], 4, 0.1)
                 panda_execute(self.p, self.pandaUid, pre_data[-1][:3]-self.offset, self.pandaEndEffectorIndex, self.pandaNumDofs, dv)
                 j += 1
                 if (

@@ -1,15 +1,12 @@
 import torch
 import torch.nn as nn
-import datetime
 import os
-import seaborn as sns
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import mpl_toolkits.mplot3d
 import time
 from .models.model import ED_LSTM_2,ED_LSTM_3
-from sklearn.preprocessing import MinMaxScaler
 from scipy.spatial.transform import Rotation as R
 from scipy.interpolate import UnivariateSpline
 from filterpy.kalman import KalmanFilter
@@ -193,7 +190,7 @@ def pos_vel_filter(x, P, R, Q=0., dt=1.0):
     return kf
 
 def load_data(npz_name)-> np.ndarray:
-    print("Loading data {}...".format(npz_name))
+    # print("Loading data {}...".format(npz_name))
     # flight_data = []
     # flight_name = []
     # # test 25728 & train 227376

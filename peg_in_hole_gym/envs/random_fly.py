@@ -2,28 +2,17 @@ import os
 import math
 import time
 import random
-from numpy.lib.npyio import load
-import pybullet_data
 import numpy as np
 from queue import Queue
 from gym import spaces
-from .utils import data_normalize, reset_panda, panda_execute
-from .assets.lstm.banana import load_data, get_lstm_pre_data
+from .utils import data_normalize, init_panda, panda_execute
 
 class RandomFly(object):
-    mode_list = ['sim', 'real']
     action_space=spaces.Box(np.array([-1]*3),np.array([1]*3)) # 末端3维信息
     observation_space = spaces.Box(np.array([-1]*12), np.array([1]*12)) # [物体位置+速度 末端位置+速度]
     def __init__(self, client, offset=[0,0,0], args=None):
-        assert (args==None or args[0] in self.mode_list)
         self.offset = np.array(offset)
         self.p = client
-        if args:
-            self.mode = args[0]
-            self.data_form = args[1] if len(args)>1 else 'Banana'
-            self.p.setTimeStep(args[2]if len(args)>2 else 1/240.)
-        else:
-            self.mode = 'sim'
 
         # panda init
         self.pandaUid = 0
@@ -45,7 +34,6 @@ class RandomFly(object):
         observation, reward, success = self.random_fly()
         info = {}
         info['success'] = success
-        # print("fuck over!step")
         return observation, reward, self.done, info
     
 
@@ -63,7 +51,8 @@ class RandomFly(object):
             # np.linalg.norm(np.array(obj_pos) - np.array(self.object_pos)) < 0.01 
             # or (abs(obj_vel[0]) + abs(obj_vel[1])) < 1 
             obj_vel[2] < -15 
-            or np.linalg.norm(obj_w) > 2 
+            # or sum([abs(x) for x in obj_vel]) < 0.5
+            # or np.linalg.norm(obj_w) > 2 
            ):
             self.done = True
             # print("why reset", np.linalg.norm(np.array(obj_pos) - np.array(self.object_pos)) < 0.01 
@@ -111,7 +100,7 @@ class RandomFly(object):
         rest_poses=[0,-0.215,-math.pi/3,-2.57,0,2.356,2.356,0.08,0.08]
         panda_base_pose = np.array([0.,0.,0.])+self.offset
         table_base_pose = np.array([0.0,-0.5,-1.3])+self.offset
-        self.pandaUid, _ = reset_panda(self.p, panda_base_pose, rest_poses, table_base_pose, flags)
+        self.pandaUid, _ = init_panda(self.p, panda_base_pose, rest_poses, table_base_pose, flags)
 
         # normalize range
         self.normalize_range = np.array([[-6,6], [-6,6], [-3,16],               # obj_pos
@@ -178,48 +167,14 @@ class RandomFly(object):
         pass
 
     def init_flying_object(self):
-        x = y = z = vx = vy = vz = 0
-        if self.mode == self.mode_list[0]:
-            target_pos = self.random_pos_in_panda_space()
-            self.p.addUserDebugLine(self.offset, target_pos,lineColorRGB=[255,0,0], lineWidth=3)
-            x  = random.uniform(4,6) * random.choice([-1., 1.]) + self.offset[0]
-            vx = random.uniform(4,6) * (-1. if (x-self.offset[0])>0 else 1.)
-            t  = abs((target_pos[0] - x) / vx)
-            vy = random.uniform(4,6) * random.choice([-1., 1.])
-            vz = random.randint(-2,5)
-            y  = target_pos[1] - vy * t
-            z  = target_pos[2] - (vz * t +  (self.gravity[2]) * t*t / 2)
-        elif self.mode == self.mode_list[1]:
-            cur_dir = os.path.abspath(os.path.dirname(__file__))
-            data_dir = cur_dir + '/assets/lstm/data/' + self.data_form + '/train/'
-            dat_min = np.load(cur_dir + '/assets/lstm/data/' + self.data_form + '/npy/dat_min.npy')
-            dat_mm = np.load(cur_dir + '/assets/lstm/data/' + self.data_form + '/npy/dat_mm.npy')
-            data_list = os.listdir(data_dir)
-            data_name = data_dir + random.choice(data_list)
-            self.object_real_traj = load_data(data_name)
-            self.object_pre_traj = get_lstm_pre_data(self.object_real_traj, data_name, dat_min, dat_mm)
-            self.object_real_traj[:,[1,2,4,5,7,8]] = self.object_real_traj[:,[2,1,5,4,8,7]]
-            self.object_real_traj = self.make_in_work_space(self.object_real_traj)
-            x,y,z = self.object_real_traj[0][:3]
-            vx,vy,vz = self.object_real_traj[0][3:6]
-            # for i in range(len(self.object_real_traj)-1):
-                # self.p.addUserDebugLine(self.offset + np.array(self.object_real_traj[i][:3]), self.offset + np.array(self.object_real_traj[i+1][:3]),lineColorRGB=[255,0,0], lineWidth=3)
+        target_pos = self.random_pos_in_panda_space()
+        self.p.addUserDebugLine(self.offset, target_pos,lineColorRGB=[255,0,0], lineWidth=3)
+        x  = random.uniform(4,6) * random.choice([-1., 1.]) + self.offset[0]
+        vx = random.uniform(4,6) * (-1. if (x-self.offset[0])>0 else 1.)
+        t  = abs((target_pos[0] - x) / vx)
+        vy = random.uniform(4,6) * random.choice([-1., 1.])
+        vz = random.randint(-2,5)
+        y  = target_pos[1] - vy * t
+        z  = target_pos[2] - (vz * t +  (self.gravity[2]) * t*t / 2)
         self.object_pos = [x, y, z]
         self.object_vel = [vx,vy,vz]
-        # print("fuck over!")
-            # pass
-
-    def make_in_work_space(self, data):
-        random_pos = self.random_pos_in_panda_space()
-        diff = data[-1, :3] - random_pos
-        for i in range(len(self.object_real_traj)):
-            data[i,:3] = data[i,:3] - diff
-        return data
-
-
-    # def get_real_data(self, data_dir, pre_start=40, idx=None):
-    #     real_data, real_data_name = load_data(data_dir)
-    #     pre_data=[]
-    #     if idx is not None:
-    #         pre_data = get_lstm_pre_data(real_data[idx], real_data_name[idx])
-    #     return real_data, pre_data

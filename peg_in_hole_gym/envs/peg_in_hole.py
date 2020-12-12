@@ -4,7 +4,7 @@ import time
 import random
 import numpy as np
 from gym import spaces
-from .utils import init_panda
+from .utils import init_panda, vel_constraint
 from skimage.draw import polygon
 # from PIL import Image, ImageDraw
 
@@ -118,7 +118,7 @@ class PegInHole(object):
     def grasp_process(self, state, targetPos, targetOrn):
         currentPos = self.p.getLinkState(self.pandaUid, self.pandaEndEffectorIndex)[0]
         
-        targetPos = self.smooth_vel(currentPos, targetPos)
+        targetPos = vel_constraint(currentPos, targetPos, self.dv)
         targetOrn = self.p.getEulerFromQuaternion(targetOrn)
 
         # gripper width init
@@ -152,7 +152,7 @@ class PegInHole(object):
         # lift
         if state == 4:
             targetPos = [self.hole_state[0] - 0.2, self.hole_state[1], self.hole_state[2]]
-            targetPos = self.smooth_vel(currentPos, targetPos)
+            targetPos = vel_constraint(currentPos, targetPos, self.dv)
             jointPoses = self.p.calculateInverseKinematics(
                 self.pandaUid, self.pandaEndEffectorIndex, targetPos, 
                 self.p.getQuaternionFromEuler([0.,-math.pi,-math.pi]))
@@ -163,7 +163,7 @@ class PegInHole(object):
         # gripper moving to manipulation-target (y,z)
         if state == 5:
             targetPos = [self.hole_state[0] - 0.04, self.hole_state[1], self.hole_state[2]]
-            targetPos = self.smooth_vel(currentPos, targetPos)
+            targetPos = vel_constraint(currentPos, targetPos, self.dv)
             jointPoses = self.p.calculateInverseKinematics(
                 self.pandaUid, self.pandaEndEffectorIndex, 
                 targetPos, self.p.getQuaternionFromEuler([0.,-math.pi,-math.pi]))
@@ -207,17 +207,6 @@ class PegInHole(object):
             if self.cur_state >= len(self.stateDurations):
                 self.cur_state = 0
 
-    def smooth_vel(self, cur, tar):
-        res = []
-        for i in range(len(tar)):
-            diff = tar[i] - cur[i]
-            re = 0
-            if abs(diff) > self.dv:
-                re = cur[i] + (self.dv if diff > 0 else -self.dv)
-            else:
-                re = cur[i] + diff
-            res.append(re)
-        return res
 
     def rotate_vector(self, vec, qua):
         if type(vec) == 'list':

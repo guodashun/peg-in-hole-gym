@@ -39,20 +39,29 @@ def reset_panda(client, panda_id, panda_orn):
 def panda_execute(client, panda_id, action, pandaEndEffectorIndex, pandaNumDofs, dv=0.3):
     client.configureDebugVisualizer(client.COV_ENABLE_SINGLE_STEP_RENDERING)
     orientation=client.getQuaternionFromEuler([0.,-math.pi,math.pi/2.])
-    
-    dx=action[0]*dv
-    dy=action[1]*dv
-    dz=action[2]*dv
-    fingers= len(action) > 3 and action[3] or 0.
-
     currentPose=client.getLinkState(panda_id,pandaEndEffectorIndex)
     currentPosition=currentPose[0]
+    
+    dx, dy, dz = vel_constraint(currentPosition, action[:3], dv)
+    fingers= len(action) > 3 and action[3] or 0.
     newPosition=[currentPosition[0]+dx,
                  currentPosition[1]+dy,
                  currentPosition[2]+dz]
     jointPoses=client.calculateInverseKinematics(panda_id,pandaEndEffectorIndex,newPosition,orientation)[0:7]
     client.setJointMotorControlArray(panda_id,list(range(pandaNumDofs))+[9,10],client.POSITION_CONTROL,list(jointPoses)+2*[fingers])
 
+
+def vel_constraint(cur, tar, dv):
+    res = []
+    for i in range(len(tar)):
+        diff = tar[i] - cur[i]
+        re = 0
+        if abs(diff) > dv:
+            re = cur[i] + (dv if diff > 0 else - dv)
+        else:
+            re = cur[i] + diff
+        res.append(re)
+    return res
 
 def random_pos_in_panda_space():
     # |x|,|y| < 0.8, 0 < z < 1
