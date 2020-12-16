@@ -16,6 +16,7 @@ class RandomFly(object):
 
         # panda init
         self.pandaUid = 0
+        self.tableUid = 0
         self.pandaEndEffectorIndex = 11
         self.pandaNumDofs = 7
 
@@ -24,12 +25,6 @@ class RandomFly(object):
         # self.reset()
     
     def step(self, action):
-        if self.mode == self.mode_list[1]:
-            self.t += 1
-            self.p.resetBaseVelocity(self.objectUid, self.object_real_traj[self.t, 3:6])
-            self.p.resetBasePositionAndOrientation(self.objectUid, self.object_real_traj[self.t, 0:3], self.object_real_traj[self.t, 9:13])
-            if self.t >= len(self.object_real_traj) - 1:
-                self.done = True
         panda_execute(self.p, self.pandaUid, action, self.pandaEndEffectorIndex, self.pandaNumDofs)
         observation, reward, success = self.random_fly()
         info = {}
@@ -51,6 +46,7 @@ class RandomFly(object):
             # np.linalg.norm(np.array(obj_pos) - np.array(self.object_pos)) < 0.01 
             # or (abs(obj_vel[0]) + abs(obj_vel[1])) < 1 
             obj_vel[2] < -15 
+            or self.p.getContactPoints(self.tableUid, self.objectUid)
             # or sum([abs(x) for x in obj_vel]) < 0.5
             # or np.linalg.norm(obj_w) > 2 
            ):
@@ -100,7 +96,7 @@ class RandomFly(object):
         rest_poses=[0,-0.215,-math.pi/3,-2.57,0,2.356,2.356,0.08,0.08]
         panda_base_pose = np.array([0.,0.,0.])+self.offset
         table_base_pose = np.array([0.0,-0.5,-1.3])+self.offset
-        self.pandaUid, _ = init_panda(self.p, panda_base_pose, rest_poses, table_base_pose, flags)
+        self.pandaUid, self.tableUid = init_panda(self.p, panda_base_pose, rest_poses, table_base_pose, flags)
 
         # normalize range
         self.normalize_range = np.array([[-6,6], [-6,6], [-3,16],               # obj_pos

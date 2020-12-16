@@ -24,7 +24,7 @@ def init_panda(client, panda_pos, panda_orn, table_pos, flags=0):
     panda_id=client.loadURDF("franka_panda/panda.urdf",basePosition=panda_pos,
                                 baseOrientation=client.getQuaternionFromEuler([0, 0, -math.pi/2]),useFixedBase=True,
                                 flags=flags)
-    for i in range(7):
+    for i in range(len(panda_orn)):
         client.resetJointState(panda_id,i,panda_orn[i])
     table_id=client.loadURDF("table/table.urdf",basePosition=table_pos, 
                             baseOrientation=client.getQuaternionFromEuler([0, 0, math.pi/2]), globalScaling=2,
@@ -38,15 +38,12 @@ def reset_panda(client, panda_id, panda_orn):
 
 def panda_execute(client, panda_id, action, pandaEndEffectorIndex, pandaNumDofs, dv=0.3):
     client.configureDebugVisualizer(client.COV_ENABLE_SINGLE_STEP_RENDERING)
-    orientation=client.getQuaternionFromEuler([0.,-math.pi,math.pi/2.])
+    orientation=client.getQuaternionFromEuler([0.,-math.pi,0.])
     currentPose=client.getLinkState(panda_id,pandaEndEffectorIndex)
     currentPosition=currentPose[0]
     
-    dx, dy, dz = vel_constraint(currentPosition, action[:3], dv)
+    newPosition = vel_constraint(currentPosition, action[:3], dv)
     fingers= len(action) > 3 and action[3] or 0.
-    newPosition=[currentPosition[0]+dx,
-                 currentPosition[1]+dy,
-                 currentPosition[2]+dz]
     jointPoses=client.calculateInverseKinematics(panda_id,pandaEndEffectorIndex,newPosition,orientation)[0:7]
     client.setJointMotorControlArray(panda_id,list(range(pandaNumDofs))+[9,10],client.POSITION_CONTROL,list(jointPoses)+2*[fingers])
 
@@ -75,7 +72,29 @@ def random_pos_in_panda_space():
     res = np.array([x,y,z])
     return res
 
-        
+
+def translate(data, diff):
+    for i in range(len(data)):
+        data[i] = data[i] - diff
+
+
+def rotate_2d(point, center, theta):
+    x = point[0] - center[0]
+    y = point[1] - center[1]
+    new_x = x * math.cos(theta) - y * math.sin(theta) 
+    new_y = x * math.sin(theta) + y * math.cos(theta)
+    point[0] = new_x + center[0]
+    point[1] = new_y + center[1]
+
+
+def rotate_3d(vec, qua):
+    x, y, z, w = qua
+    rotate_matrix = np.array([1-2*y*y-2*z*z, 2*x*y-2*z*w, 2*x*z+2*y*w,
+                                2*x*y+2*z*w, 1-2*x*x-2*z*z, 2*y*z-2*x*w,
+                                2*x*z-2*y*w, 2*y*z+2*x*w, 1-2*x*x-2*y*y]).reshape(3,3)
+    vec = rotate_matrix @ vec 
+
+
 class MultiAgentObservationSpace(list):
     def __init__(self, agents_observation_space):
         for x in agents_observation_space:

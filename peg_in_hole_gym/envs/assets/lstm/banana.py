@@ -284,6 +284,7 @@ def get_lstm_pre_data(flight_data, flight_name, dat_min, dat_mm, pred_start=40, 
     # print(kf)
     # run the kalman filter and store the results
     xs, cov = [], []
+    err = []
 
     for i in range(pred_start,len(flight_pred)):
 
@@ -335,6 +336,7 @@ def get_lstm_pre_data(flight_data, flight_name, dat_min, dat_mm, pred_start=40, 
             dist_x = np.linalg.norm(flight_pred[i][0:3] - flight_origin[i][0:3])
             dist_y = np.linalg.norm(flight_pred[i][3:6] - flight_origin[i][3:6])
             dist_z = np.linalg.norm(flight_pred[i][6:9] - flight_origin[i][6:9])
+            err = dist_x
             # pred_error.append(np.array([dist_x, dist_y, dist_z]))
             if verbose:
                 print('pred_error:{}'.format(dist_x))
@@ -374,6 +376,6 @@ def get_lstm_pre_data(flight_data, flight_name, dat_min, dat_mm, pred_start=40, 
     #     print('Average pred error:{}'.format(np.mean(pred_error,axis=0)))
     #     print('Average cal error:{}'.format(np.mean(cal_error,axis=0)))
 
-    return flight_pred
+    return flight_pred, err
 
 # def gen_data_from_model():
