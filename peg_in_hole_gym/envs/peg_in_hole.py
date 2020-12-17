@@ -77,16 +77,18 @@ class PegInHole(object):
                     b = ( (1. - length * math.cos(angle) - width * math.sin(angle)) / 2 * self.output_shape[0], (1. + length * math.sin(angle) - width * math.cos(angle)) / 2 * self.output_shape[1])
                     c = ( (1. - length * math.cos(angle) + width * math.sin(angle)) / 2 * self.output_shape[0], (1. + length * math.sin(angle) + width * math.cos(angle)) / 2 * self.output_shape[1])
                     d = ( (1. + length * math.cos(angle) - width * math.sin(angle)) / 2 * self.output_shape[0], (1. - length * math.sin(angle) - width * math.cos(angle)) / 2 * self.output_shape[1])
-                    R = [a[0], b[0], c[0], d[0]]
-                    C = [a[1], b[1], c[1], d[0]]
+                    rrr = [a[0], c[0], b[0], d[0]]
+                    ccc = [a[1], c[1], b[1], d[1]]
                     # calculate real length in pic
-                    width = np.linalg.norm(np.array(a)-np.array(b))
+                    width = np.linalg.norm(np.array(a)-np.array(d))
                     length = np.linalg.norm(np.array(a)-np.array(c))
-                    rr, cc = polygon(R, C, shape=self.output_shape)
-                    pos_img[rr,cc] = 1.0
-                    ang_img[rr,cc] = angle
-                    wid_img[rr,cc] = width
-                    # draw.polygon([a,c,b,d], outline=25)
+                    rr, cc = polygon(rrr, ccc, shape=self.output_shape)
+                    pos_img[cc,rr] = 50
+                    ang_img[cc,rr] = angle
+                    wid_img[cc,rr] = width
+                    # img = Image.fromarray(pos_img)
+                    # draw = ImageDraw.Draw(img)
+                    # draw.polygon([a,c,b,d], outline=100)
                     # img.show()
                     # cos_o = targetPos[0]/math.sqrt(targetPos[0]*targetPos[0] + targetPos[1]*targetPos[1])
                     # sin_o = targetPos[1]/math.sqrt(targetPos[0]*targetPos[0] + targetPos[1]*targetPos[1])

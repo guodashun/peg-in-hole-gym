@@ -36,7 +36,7 @@ def reset_panda(client, panda_id, panda_orn):
         client.resetJointState(panda_id,i,panda_orn[i])
 
 
-def panda_execute(client, panda_id, action, pandaEndEffectorIndex, pandaNumDofs, dv=0.3):
+def panda_execute(client, panda_id, action, pandaEndEffectorIndex, pandaNumDofs, dv=2/240.):
     client.configureDebugVisualizer(client.COV_ENABLE_SINGLE_STEP_RENDERING)
     orientation=client.getQuaternionFromEuler([0.,-math.pi,0.])
     currentPose=client.getLinkState(panda_id,pandaEndEffectorIndex)
