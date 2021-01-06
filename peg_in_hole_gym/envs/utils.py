@@ -45,7 +45,7 @@ def panda_execute(client, panda_id, action, pandaEndEffectorIndex, pandaNumDofs,
     newPosition = vel_constraint(currentPosition, action[:3], dv)
     fingers= len(action) > 3 and action[3] or 0.
     jointPoses=client.calculateInverseKinematics(panda_id,pandaEndEffectorIndex,newPosition,orientation)[0:7]
-    client.setJointMotorControlArray(panda_id,list(range(pandaNumDofs))+[9,10],client.POSITION_CONTROL,list(jointPoses)+2*[fingers])
+    client.setJointMotorControlArray(panda_id,list(range(pandaNumDofs))+[9,10],client.POSITION_CONTROL,list(jointPoses)+2*[fingers], positionGains=[1]*9) 
 
 
 def vel_constraint(cur, tar, dv):
