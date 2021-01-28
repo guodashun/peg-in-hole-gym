@@ -102,6 +102,9 @@ class MultiAgentObservationSpace(list):
 
         super().__init__(agents_observation_space)
         self._agents_observation_space = agents_observation_space
+        self.shape = agents_observation_space[0].shape
+        self.high = agents_observation_space[0].high
+        self.low = agents_observation_space[0].low
 
     def sample(self):
         """ samples observations for each agent from uniform distribution"""
@@ -123,6 +126,9 @@ class MultiAgentActionSpace(list):
 
         super(MultiAgentActionSpace, self).__init__(agents_action_space)
         self._agents_action_space = agents_action_space
+        self.shape = agents_action_space[0].shape
+        self.high = agents_action_space[0].high
+        self.low = agents_action_space[0].low
 
     def sample(self):
         """ samples action for each agent from uniform distribution"""
@@ -136,6 +142,9 @@ class MPMultiAgentObservationSpace(MultiAgentObservationSpace):
 
         # super().__init__(agents_observation_space)
         self._agents_observation_space = agents_observation_space
+        self.shape = agents_observation_space[0].shape
+        self.high = agents_observation_space[0].high
+        self.low = agents_observation_space[0].low
 
     def sample(self):
         """ samples observations for each agent from uniform distribution"""
@@ -157,6 +166,9 @@ class MPMultiAgentActionSpace(MultiAgentActionSpace):
 
         # super(MultiAgentActionSpace, self).__init__(agents_action_space)
         self._agents_action_space = agents_action_space
+        self.shape = agents_action_space[0].shape
+        self.high = agents_action_space[0].high
+        self.low = agents_action_space[0].low
 
     def sample(self):
         """ samples action for each agent from uniform distribution"""
