@@ -19,13 +19,16 @@ class RandomFly(object):
         self.tableUid = 0
         self.pandaEndEffectorIndex = 11
         self.pandaNumDofs = 7
+        self.panda_dv = 2/240.
+        if args:
+            self.panda_dv = args[0]
 
         self.done = False
         self.t = 0
         # self.reset()
     
     def step(self, action):
-        panda_execute(self.p, self.pandaUid, action, self.pandaEndEffectorIndex, self.pandaNumDofs)
+        panda_execute(self.p, self.pandaUid, action, self.pandaEndEffectorIndex, self.pandaNumDofs, self.panda_dv)
         observation, reward, success = self.random_fly()
         info = {}
         info['success'] = success

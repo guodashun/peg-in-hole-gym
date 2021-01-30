@@ -38,10 +38,10 @@ class PandaEnvMp(gym.Env):
 
     def step(self, action):
         for i in range(self.mp_num):
-            if not self.dones[i]:
+            if not all(self.dones[i]):
                 self.msg_queues[i].put([self.STEP, action[i]])
         for i in range(self.mp_num):
-            if not self.dones[i]:
+            if not all(self.dones[i]):
                 obs, reward, done, info = self.res_queues[i].get()
                 self.observations[i] = obs
                 self.rewards[i] = reward
@@ -52,9 +52,9 @@ class PandaEnvMp(gym.Env):
     
     def reset(self):
         self.observations = self.observation_space.sample()
-        self.rewards = [[] for _ in range(self.mp_num)]
-        self.infos = [[] for _ in range(self.mp_num)]
-        self.dones = [False for _ in range(self.mp_num)]
+        self.rewards = [[0. for _ in range(self.sub_num)] for _ in range(self.mp_num)]
+        self.infos = [[{} for _ in range(self.sub_num)] for _ in range(self.mp_num)]
+        self.dones = [[False for _ in range(self.sub_num)] for _ in range(self.mp_num)]
         for i in range(self.mp_num):
             self.msg_queues[i].put([self.RESET, None])
         for i in range(self.mp_num):
