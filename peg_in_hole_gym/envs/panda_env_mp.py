@@ -47,8 +47,7 @@ class PandaEnvMp(gym.Env):
                 self.rewards[i] = reward
                 self.dones[i] = done
                 self.infos[i] = info
-        all_done = all(self.dones)
-        return self.observations, self.rewards, all_done, self.infos
+        return self.observations, self.rewards, self.dones, self.infos
 
     
     def reset(self):

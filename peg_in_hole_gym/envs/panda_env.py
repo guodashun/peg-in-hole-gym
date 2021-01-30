@@ -70,11 +70,10 @@ class PandaEnv(gym.Env):
                 self.dones[i] = done
                 self.infos[i] = info
         self.p.stepSimulation()
-        all_done = all(self.dones)
         # quick reset for test
         if self.is_test:
             test_mode('r', self.reset)
-        return self.observations, self.rewards, all_done, self.infos
+        return self.observations, self.rewards, self.dones, self.infos
 
 
     # 神经网络输入图像信息来进行训练
