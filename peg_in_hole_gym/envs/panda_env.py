@@ -64,12 +64,15 @@ class PandaEnv(gym.Env):
     def step(self,action):
         for i in range(self.task_num):
             if not self.dones[i]:
-                observation, reward, done, info = self.sub_envs[i].step(action[i])
+                self.sub_envs[i].apply_action(action[i])
+        self.p.stepSimulation()
+        for i in range(self.task_num):
+            if not self.dones[i]:
+                observation, reward, done, info = self.sub_envs[i].get_info()
                 self.observations[i]=observation
                 self.rewards[i] = reward
                 self.dones[i] = done
                 self.infos[i] = info
-        self.p.stepSimulation()
         # quick reset for test
         if self.is_test:
             test_mode('r', self.reset)

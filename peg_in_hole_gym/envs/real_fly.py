@@ -11,8 +11,8 @@ from .assets.lstm.banana import load_data, get_lstm_pre_data
 
 class RealFly(object):
     mode_list = ['Banana', 'Bottle13', 'Bottle23', 'Bag', 'Newton']
-    action_space=spaces.Box(np.array([-1]*3),np.array([1]*3)) # 末端3维信息
-    observation_space = spaces.Box(np.array([-1]*12), np.array([1]*12)) # [物体位置+速度 末端位置+速度]
+    action_space=spaces.Box(np.array([-100]*3),np.array([100]*3))
+    observation_space = spaces.Box(np.array([-1]), np.array([1]))
     def __init__(self, client, offset=[0,0,0], args=None):
         assert (args[0] in self.mode_list)
         self.offset = np.array(offset)
@@ -30,21 +30,22 @@ class RealFly(object):
 
         self.done = False
     
-    def step(self, action):
+    def apply_action(self, action):
         pre_start = action[0]
         dv = action[1]
         distance = action[2] if len(action)>1 else None
-        observation = reward =0 
-        success = self._virtual_fly(pre_start, distance, dv)
+        self.success = self._virtual_fly(pre_start, distance, dv)
+        
+    def get_info(self):    
         self.done = True
         info = {}
-        info['success'] = success
+        info['success'] = self.success
         info['arm_vel'] = self.arm_vel
-        if success:
+        if self.success:
             info['err'] = 0
         else:
             info['err'] = self.err
-        return observation, reward, self.done, info
+        return 0.,0., self.done, info
     
 
     def reset(self):

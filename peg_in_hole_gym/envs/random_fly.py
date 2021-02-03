@@ -24,11 +24,12 @@ class RandomFly(object):
             self.panda_dv = args[0]
 
         self.done = False
-        self.t = 0
         # self.reset()
     
-    def step(self, action):
-        panda_execute(self.p, self.pandaUid, action, self.pandaEndEffectorIndex, self.pandaNumDofs, self.panda_dv)
+    def apply_action(self, action):
+        panda_execute(self.p, self.pandaUid, action+self.offset, self.pandaEndEffectorIndex, self.pandaNumDofs, self.panda_dv)
+        
+    def get_info(self):
         observation, reward, success = self.random_fly()
         info = {}
         info['success'] = success
@@ -39,17 +40,15 @@ class RandomFly(object):
     def random_fly(self):
         obj_pos = self.p.getBasePositionAndOrientation(self.objectUid)[0]
         obj_vel, obj_w = self.p.getBaseVelocity(self.objectUid)[0:2]
-        if self.obs_delay:
-            self.obs_delay_queue.put([obj_pos, obj_vel])
-            obj_pos, obj_vel = self.obs_delay_queue.get()
         base_info = self.p.getLinkState(self.pandaUid,self.pandaEndEffectorIndex,computeLinkVelocity=1)
         base_pos = base_info[0]
         base_vel = base_info[6]
         if (
-            # np.linalg.norm(np.array(obj_pos) - np.array(self.object_pos)) < 0.01 
+            np.linalg.norm(np.array(obj_pos) - np.array(self.target_pos)) < 0.1 
             # or (abs(obj_vel[0]) + abs(obj_vel[1])) < 1 
-            obj_vel[2] < -15 
+            or obj_vel[2] < -15 
             or self.p.getContactPoints(self.tableUid, self.objectUid)
+            or obj_pos[2] < -4
             # or sum([abs(x) for x in obj_vel]) < 0.5
             # or np.linalg.norm(obj_w) > 2 
            ):
@@ -57,32 +56,34 @@ class RandomFly(object):
             # print("why reset", np.linalg.norm(np.array(obj_pos) - np.array(self.object_pos)) < 0.01 
             #         , obj_vel[2] < -15
             #         , np.linalg.norm(obj_w) > 2)
-        reward = 0.0
+        reward = 0.
         success = False
 
         pos_bias = np.linalg.norm(np.array(base_pos) - np.array(obj_pos))
+        # pos_bias = np.linalg.norm(np.array(base_pos) - np.array(self.target_pos))
         # vel_bias = np.linalg.norm(np.array(base_vel) - np.array(obj_vel))
         move_cst = np.linalg.norm(np.array(base_pos) - np.array(self.last_panda_pos))
-        pos_r  = -math.log(pos_bias) * 0.7
-        # vel_r  = -math.log(vel_bias) * 0.01
+        pos_r  = -math.log(pos_bias + 1.) * 0.1  # / self.max_t * 80
+        # vel_r  = -math.log(vel_bias) * 0.01S
         move_r = 1 - math.exp(move_cst)
-        use_time_r = False
         if (
             self.p.getContactPoints(self.pandaUid, self.objectUid, 8)
-            or (self.done and pos_bias < 0.4)
+            or pos_bias < 0.2
            ):
             success = True
-        if self.p.getContactPoints(self.pandaUid, self.objectUid, 8):
-            cli_r = 800 + (self.time_r if use_time_r else 0.)
+            cli_r = 200
             self.done=True
         else:
-            cli_r = -0.5
-        self.time_r -= 0.01
+            cli_r = 0
 
         reward = cli_r + pos_r # + vel_r + + move_r
 
         self.last_panda_pos = base_pos
 
+        if self.obs_delay:
+            self.obs_delay_queue.put([obj_pos, obj_vel])
+            obj_pos, obj_vel = self.obs_delay_queue.get()
+        
         # normalize
         res = list(obj_pos+ obj_vel+ base_pos+ base_vel)
         res = data_normalize(res, self.normalize_range)
@@ -113,14 +114,14 @@ class RandomFly(object):
 
         # init flying object
         self.init_flying_object()
-        self.t = 0
 
         base_orn = self.p.getQuaternionFromEuler([random.uniform(-math.pi, math.pi) for i in range(3)])
-        self.objectUid = self.p.loadURDF(os.path.join(os.path.dirname(os.path.realpath(__file__)),"assets/urdf/Amicelli_800_tex.urdf"),
-                                    basePosition=self.object_pos, baseOrientation=base_orn,
-                                    globalScaling=5)
+        self.objectUid = self.p.loadURDF(os.path.join(os.path.dirname(os.path.realpath(__file__)),"assets/urdf/banana.urdf"),
+                    basePosition=self.object_pos, baseOrientation=base_orn,
+                    globalScaling=1)
         self.p.changeDynamics(self.objectUid, -1, linearDamping=0, angularDamping=0)
         self.p.resetBaseVelocity(self.objectUid, self.object_vel)
+        
 
 
         obj_pos = self.p.getBasePositionAndOrientation(self.objectUid)[0]
@@ -129,9 +130,7 @@ class RandomFly(object):
         base_pos = base_info[0]
         base_vel = base_info[6]
         self.last_panda_pos = base_pos
-
-        # add time cost
-        self.time_r = 0
+        self.max_bias = np.linalg.norm(np.array(base_pos) - np.array(obj_pos))
         
         # done
         self.done = False
@@ -167,6 +166,7 @@ class RandomFly(object):
 
     def init_flying_object(self):
         target_pos = self.random_pos_in_panda_space()
+        self.target_pos = target_pos
         self.p.addUserDebugLine(self.offset, target_pos,lineColorRGB=[255,0,0], lineWidth=3)
         x  = random.uniform(4,6) * random.choice([-1., 1.]) + self.offset[0]
         vx = random.uniform(4,6) * (-1. if (x-self.offset[0])>0 else 1.)
@@ -177,3 +177,4 @@ class RandomFly(object):
         z  = target_pos[2] - (vz * t +  (self.gravity[2]) * t*t / 2)
         self.object_pos = [x, y, z]
         self.object_vel = [vx,vy,vz]
+        self.max_t = t * 240

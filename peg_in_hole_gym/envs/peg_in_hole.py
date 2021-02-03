@@ -27,11 +27,13 @@ class PegInHole(object):
 
         # self.reset()
 
-    def step(self, action):
+    def apply_action(self, action):
+        pass
+
+    def get_info(self):
         info, reward = self.random_grasp()
         observation = self.grasp_img
         done = self.done
-
         return observation, reward, done, info
 
     def random_grasp(self):
