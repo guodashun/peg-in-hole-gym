@@ -1,3 +1,4 @@
+from operator import pos
 import os
 import math
 import time
@@ -64,6 +65,8 @@ class RandomFly(object):
         # vel_bias = np.linalg.norm(np.array(base_vel) - np.array(obj_vel))
         move_cst = np.linalg.norm(np.array(base_pos) - np.array(self.last_panda_pos))
         pos_r  = -math.log(pos_bias + 1.) * 0.1  # / self.max_t * 80
+        rel_pos_bias = pos_bias - self.last_bias
+        rel_r = rel_pos_bias
         # vel_r  = -math.log(vel_bias) * 0.01S
         move_r = 1 - math.exp(move_cst)
         if (
@@ -76,9 +79,11 @@ class RandomFly(object):
         else:
             cli_r = 0
 
-        reward = cli_r + pos_r # + vel_r + + move_r
+        # reward = cli_r + pos_r # + vel_r + + move_r
+        reward = cli_r + rel_r
 
         self.last_panda_pos = base_pos
+        self.last_bias = pos_bias
 
         if self.obs_delay:
             self.obs_delay_queue.put([obj_pos, obj_vel])
@@ -131,6 +136,7 @@ class RandomFly(object):
         base_vel = base_info[6]
         self.last_panda_pos = base_pos
         self.max_bias = np.linalg.norm(np.array(base_pos) - np.array(obj_pos))
+        self.last_bias = self.max_bias.copy()
         
         # done
         self.done = False

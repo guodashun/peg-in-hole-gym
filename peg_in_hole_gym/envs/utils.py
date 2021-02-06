@@ -54,7 +54,7 @@ def vel_constraint(cur, tar, dv):
         diff = tar[i] - cur[i]
         re = 0
         if abs(diff) > dv:
-            re = cur[i] + (dv if diff > 0 else - dv)
+            re = cur[i] + (dv if diff > 0 else -dv)
         else:
             re = cur[i] + diff
         res.append(re)

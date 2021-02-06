@@ -7,7 +7,7 @@ import numpy as np
 from queue import Queue
 from gym import spaces
 from .utils import init_panda, panda_execute, random_pos_in_panda_space, rotate_2d
-from .assets.lstm.banana import load_data, get_lstm_pre_data
+from .assets.lstm.flyer import Flyer
 
 class RealFly(object):
     mode_list = ['Banana', 'Bottle13', 'Bottle23', 'Bag', 'Newton']
@@ -18,6 +18,7 @@ class RealFly(object):
         self.offset = np.array(offset)
         self.p = client
         self.data_form = args[0]
+        self.flyer = Flyer(self.data_form)
         self.time_step = args[1]if len(args)>1 else 1/240.
         self.verbose = args[2] if len(args)>2 else False
         # print(self.verbose, args[2])
@@ -85,7 +86,7 @@ class RealFly(object):
         if self.data_form == self.mode_list[-1]:
             self.object_real_traj = np.load(self.data_name)
         else:
-            self.object_real_traj = load_data(self.data_name)
+            self.object_real_traj = Flyer.load_data(self.data_name)
         self.object_raw_data = self.object_real_traj.copy()
         self.object_real_traj[:,[1,2,4,5,7,8]] = self.object_real_traj[:,[2,1,5,4,8,7]]
         random_pos = random_pos_in_panda_space()
@@ -115,12 +116,13 @@ class RealFly(object):
             data[i,:3] = data[i,:3] - diff
 
 
-    def _get_pre_data(self, raw_data, data_name, pre_start):
-        cur_dir = os.path.abspath(os.path.dirname(__file__))
-        dat_min = np.load(cur_dir + '/assets/lstm/data/' + self.data_form + '/npy/dat_min.npy')
-        dat_mm = np.load(cur_dir + '/assets/lstm/data/' + self.data_form + '/npy/dat_mm.npy')
-        pre_data, err = get_lstm_pre_data(raw_data, data_name, dat_min, dat_mm, pre_start, False)
+    def _get_pre_data(self, raw_data, pre_start):
+        self.flyer.init_lstm_pre(raw_data[:pre_start])
+        for _ in range(len(raw_data)-pre_start):
+            self.flyer.get_next_pre_data()
+        pre_data = self.flyer.get_whole_pre_data()
         pre_data[:,[1,2,4,5,7,8]] = pre_data[:,[2,1,5,4,8,7]]
+        err = np.linalg.norm(raw_data[-1][0:3] - pre_data[-1][0:3])
         return pre_data, err
 
 
@@ -138,7 +140,7 @@ class RealFly(object):
         j = 0
         while j < (len(self.object_real_traj)-start_time):
             lstm_time = time.time()
-            pre_data, self.err = self._get_pre_data(self.object_raw_data, self.data_name, j+start_time)
+            pre_data, self.err = self._get_pre_data(self.object_raw_data, j+start_time)
             self._make_in_work_space(pre_data, self.diff)
             cst_time = math.ceil((time.time() - lstm_time) / self.time_step)
             cst_time = 6 if cst_time >= 120 else cst_time
