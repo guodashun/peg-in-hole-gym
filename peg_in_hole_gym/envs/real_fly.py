@@ -35,7 +35,8 @@ class RealFly(object):
         pre_start = action[0]
         dv = action[1]
         distance = action[2] if len(action)>1 else None
-        self.success = self._virtual_fly(pre_start, distance, dv)
+        self.init_flying_object(distance)
+        self.success = self._virtual_fly(pre_start, dv)
         
     def get_info(self):    
         self.done = True
@@ -68,6 +69,7 @@ class RealFly(object):
                             basePosition=np.array([0,0,10])+self.offset, baseOrientation=base_orn,
                             globalScaling=1)
         self.p.changeDynamics(self.objectUid, -1, linearDamping=0, angularDamping=0)
+        self.object_real_traj = None
         
         # done
         self.done = False
@@ -78,25 +80,33 @@ class RealFly(object):
     def render(self, mode='rgb_array'):
         pass
 
-    def _init_flying_object(self, distance=None):
+    def init_flying_object(self, distance=None):
+        # choice a trajection from dataset randomly
         cur_dir = os.path.abspath(os.path.dirname(__file__))
         data_dir = cur_dir + '/assets/lstm/data/' + self.data_form + '/test/'
         data_list = os.listdir(data_dir)
         self.data_name = data_dir + random.choice(data_list)
-        if self.data_form == self.mode_list[-1]:
+
+        # load trajection data
+        if self.data_form == self.mode_list[-1]: # Newton is different from others
             self.object_real_traj = np.load(self.data_name)
         else:
             self.object_real_traj = Flyer.load_data(self.data_name)
         self.object_raw_data = self.object_real_traj.copy()
+
+        # change xzy to xyz
         self.object_real_traj[:,[1,2,4,5,7,8]] = self.object_real_traj[:,[2,1,5,4,8,7]]
+
+        # choice a destination for the trajection (randomly or fixed distance)
         random_pos = random_pos_in_panda_space()
-        self.diff = self.object_real_traj[-1, :3] - random_pos
         if type(distance) == list:
             random_pos = self.p.getLinkState(self.pandaUid,11)[0] + np.array(distance)
-            self.diff = self.object_real_traj[-1, :3] - random_pos
         if self.verbose:
             for i in range(len(self.object_real_traj)-1):
                 self.p.addUserDebugLine(np.array(self.object_real_traj[i][:3]), np.array(self.object_real_traj[i+1][:3]),lineColorRGB=[0,0,255], lineWidth=3)
+        
+        # normalize for the trajection
+        self.diff = self.object_real_traj[-1, :3] - random_pos
         self._make_in_work_space(self.object_real_traj, self.diff)
         theta = - (math.atan2((self.object_real_traj[-1][1]- self.object_real_traj[0][1]),\
                               (self.object_real_traj[-1][0] - self.object_real_traj[0][0])) - math.pi/2)
@@ -126,8 +136,10 @@ class RealFly(object):
         return pre_data, err
 
 
-    def _virtual_fly(self, start_time, distance, dv):
-        self._init_flying_object(distance)
+    def _virtual_fly(self, start_time, dv):
+        assert type(self.object_real_traj) == np.ndarray, "Please run \'init_flying_object\' function firstly!"
+        
+        # reset obejct to the postion at start frame
         for i in range(start_time):
             self.p.resetBaseVelocity(self.objectUid, self.object_real_traj[i, 3:6])
             if self.data_form == self.mode_list[-1]:
@@ -137,15 +149,25 @@ class RealFly(object):
                 self.p.resetBasePositionAndOrientation(self.objectUid, self.object_real_traj[i, 0:3], self.object_real_traj[i, 9:13])
             self.p.stepSimulation()
             self.arm_vel.append([0,0,0])
+        
+        # start action via lstm prediction
         j = 0
         while j < (len(self.object_real_traj)-start_time):
+            
+            # record prediction time
             lstm_time = time.time()
+            
+            # normalize the action
             pre_data, self.err = self._get_pre_data(self.object_raw_data, j+start_time)
             self._make_in_work_space(pre_data, self.diff)
+
+            # simulation the lstm predition time cost
             cst_time = math.ceil((time.time() - lstm_time) / self.time_step)
+            # prevent the prediction time from being too large to exceed the total trajection time
             cst_time = 6 if cst_time >= 120 else cst_time
             cst_time = ((len(self.object_real_traj)-start_time)-j) if (j+cst_time >= (len(self.object_real_traj)-start_time)) else cst_time
             for i in range(cst_time):
+                # set flyer state recording to real trajection
                 self.p.resetBaseVelocity(self.objectUid, self.object_real_traj[j+start_time, 3:6])
                 if self.data_form == self.mode_list[-1]:
                     base_orn = self.p.getQuaternionFromEuler([random.uniform(-math.pi, math.pi) for i in range(3)])
@@ -158,6 +180,8 @@ class RealFly(object):
                 if self.verbose:
                     self.p.addUserDebugLine(pre_data[-1][:3]-self.offset, self.offset, [255,255,0], 3)
                 self.arm_vel.append(self.p.getLinkState(self.pandaUid,self.pandaEndEffectorIndex,computeLinkVelocity=1)[6])
+                
+                # judge if panda catching the flyer
                 if (
                     self.p.getContactPoints(self.pandaUid, self.objectUid, 8)
                 ):

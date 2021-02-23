@@ -37,11 +37,17 @@ def reset_panda(client, panda_id, panda_orn):
 
 
 def panda_execute(client, panda_id, action, pandaEndEffectorIndex, pandaNumDofs, dv=2/240.):
+    # smooth vision rendering
     client.configureDebugVisualizer(client.COV_ENABLE_SINGLE_STEP_RENDERING)
     orientation=client.getQuaternionFromEuler([0.,-math.pi,0.])
     currentPose=client.getLinkState(panda_id,pandaEndEffectorIndex)
     currentPosition=currentPose[0]
     
+    # # 这里清零一下速度看看randomfly速度会不会正常
+    # # print("test for getstate",client.getJointStates(panda_id, range(12)))
+    # j_num = client.getNumJoints(panda_id)
+    # for i in range(j_num):
+    #     client.resetJointState(panda_id, i, client.getJointState(panda_id, i)[0])
     newPosition = vel_constraint(currentPosition, action[:3], dv)
     fingers= len(action) > 3 and action[3] or 0.
     jointPoses=client.calculateInverseKinematics(panda_id,pandaEndEffectorIndex,newPosition,orientation)[0:7]
