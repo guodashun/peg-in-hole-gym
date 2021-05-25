@@ -1,10 +1,10 @@
 import pybullet as p
 import gym
-from .panda_env import PandaEnv
+from .base_env import BaseEnv
 from .utils import MPMultiAgentActionSpace, MPMultiAgentObservationSpace
 from multiprocessing import Queue, Process
 
-class PandaEnvMp(gym.Env):
+class BaseEnvMp(gym.Env):
 
     CLOSE = 0
     RESET = 1
@@ -24,7 +24,7 @@ class PandaEnvMp(gym.Env):
         self.res_queues = []
         self.processes = []
         for i in range(self.mp_num):    
-            self.clients.append(PandaEnv(client, task, self.sub_num, offset, args, is_test))
+            self.clients.append(BaseEnv(client, task, self.sub_num, offset, args, is_test))
             msg_queue = Queue(1)
             res_queue = Queue(1)
             self.msg_queues.append(msg_queue)

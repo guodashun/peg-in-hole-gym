@@ -6,15 +6,17 @@ from pybullet_utils.bullet_client import BulletClient
 from .peg_in_hole import PegInHole
 from .random_fly import RandomFly
 from .real_fly import RealFly
+from .plug_in import PlugIn
 from .utils import test_mode, MultiAgentActionSpace, MultiAgentObservationSpace
 
 task_list = {
-             'peg-in-hole':PegInHole, 
-             'random-fly':RandomFly,
-             'real-fly':RealFly
-            }
+    'peg-in-hole':PegInHole, 
+    'random-fly' :RandomFly,
+    'real-fly'   :RealFly,
+    'plug-in'    :PlugIn,
+}
 
-class PandaEnv(gym.Env):
+class BaseEnv(gym.Env):
     metadata = {'render.modes':['human', 'rgb_array']}
     def __init__(self, client, task='peg-in-hole', task_num = 1, offset = [0,0,0], args=None, is_test=False):
         assert task in task_list

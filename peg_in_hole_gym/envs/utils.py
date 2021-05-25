@@ -2,6 +2,7 @@ import pybullet as p
 import numpy as np
 import pybullet_data
 import math
+import os
 import gym
 import random
 
@@ -19,6 +20,12 @@ def data_normalize(data, normalize_range):
         data[i] = (data[i] - normalize_range[i][0]) / (normalize_range[i][1] - normalize_range[i][0])
     return data
 
+def init_table(client, table_pos, flags):
+    table_id=client.loadURDF("table/table.urdf",basePosition=table_pos, 
+                        baseOrientation=client.getQuaternionFromEuler([0, 0, math.pi/2]), globalScaling=2,
+                        flags=flags)
+    return table_id
+
 def init_panda(client, panda_pos, panda_orn, table_pos, flags=0):
     client.setAdditionalSearchPath(pybullet_data.getDataPath())
     panda_id=client.loadURDF("franka_panda/panda.urdf",basePosition=panda_pos,
@@ -26,32 +33,50 @@ def init_panda(client, panda_pos, panda_orn, table_pos, flags=0):
                                 flags=flags)
     for i in range(len(panda_orn)):
         client.resetJointState(panda_id,i,panda_orn[i])
-    table_id=client.loadURDF("table/table.urdf",basePosition=table_pos, 
-                            baseOrientation=client.getQuaternionFromEuler([0, 0, math.pi/2]), globalScaling=2,
-                            flags=flags)
+    table_id = init_table(client, table_pos, flags)
     return panda_id, table_id
 
+def init_ur(client, ur_pos, ur_orn, table_pos, flags=0):
+    client.setAdditionalSearchPath(pybullet_data.getDataPath())
+    ur_id=client.loadURDF(os.path.join(os.path.dirname(os.path.realpath(__file__)),"assets/urdf/ur5.urdf"),basePosition=ur_pos,
+                                baseOrientation=[0, 0, 0, 1],useFixedBase=True,
+                                flags=flags)
+    for i in range(len(ur_orn)):
+        client.resetJointState(ur_id,i,ur_orn[i])
+    table_id = init_table(client, table_pos, flags)
+    return ur_id, table_id
+
+
+# useless because of resetSimulation()
 def reset_panda(client, panda_id, panda_orn):
-    for i in range(7):
+    for i in range(len(panda_orn)):
         client.resetJointState(panda_id,i,panda_orn[i])
+
+# useless because of resetSimulation()
+def reset_ur(client, ur_id, ur_orn):
+    for i in range(len(ur_orn)):
+        client.resetJointState(ur_id,i,ur_orn[i])
 
 
 def panda_execute(client, panda_id, action, pandaEndEffectorIndex, pandaNumDofs, dv=2/240.):
-    # smooth vision rendering
-    client.configureDebugVisualizer(client.COV_ENABLE_SINGLE_STEP_RENDERING)
     orientation=client.getQuaternionFromEuler([0.,-math.pi,0.])
     currentPose=client.getLinkState(panda_id,pandaEndEffectorIndex)
     currentPosition=currentPose[0]
     
-    # # 这里清零一下速度看看randomfly速度会不会正常
-    # # print("test for getstate",client.getJointStates(panda_id, range(12)))
-    # j_num = client.getNumJoints(panda_id)
-    # for i in range(j_num):
-    #     client.resetJointState(panda_id, i, client.getJointState(panda_id, i)[0])
     newPosition = vel_constraint(currentPosition, action[:3], dv)
     fingers= len(action) > 3 and action[3] or 0.
     jointPoses=client.calculateInverseKinematics(panda_id,pandaEndEffectorIndex,newPosition,orientation)[0:7]
     client.setJointMotorControlArray(panda_id,list(range(pandaNumDofs))+[9,10],client.POSITION_CONTROL,list(jointPoses)+2*[fingers], positionGains=[1]*9) 
+
+def ur_execute(client, ur_id, action, urEndEffectorIndex, urNumDofs, dv=2/240.):
+    orientation=client.getQuaternionFromEuler([-1.2879050862601897, 1.5824233979484994, 0.19581299859677043])
+    currentPose=client.getLinkState(ur_id,urEndEffectorIndex)
+    currentPosition=currentPose[0]
+    # orientation=currentPose[1]
+    # newPosition = vel_constraint(currentPosition, action[:3], dv)
+    newPosition = action
+    jointPoses=client.calculateInverseKinematics(ur_id,urEndEffectorIndex,newPosition,orientation)[0:7]
+    client.setJointMotorControlArray(ur_id,list(range(1,urNumDofs+1)),client.POSITION_CONTROL,list(jointPoses), positionGains=[0.03]*urNumDofs) 
 
 
 def vel_constraint(cur, tar, dv):
