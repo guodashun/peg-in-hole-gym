@@ -11,7 +11,7 @@ from .assets.lstm.flyer import Flyer
 
 class PlugIn(object):
     mode_list = ['Banana', 'Bottle', 'Bamboo', 'Green', 'Gourd', 'Paige']
-    action_space=spaces.Box(np.array([-0.5,-0.5,0]),np.array([0.5]*3))
+    action_space=spaces.Box(np.array([-0.8,0,0,-math.pi,-math.pi,-math.pi]),np.array([0.8,0.8,0.8,math.pi,math.pi,math.pi]))
     observation_space = spaces.Box(np.array([-1]), np.array([1]))
     def __init__(self, client, offset=[0,0,0], args=['Banana', 1/120., False]):
         assert (args[0] in self.mode_list)
@@ -31,8 +31,8 @@ class PlugIn(object):
         self.done = False
 
     def apply_action(self, action):
+        action = np.clip(action, self.action_space.low,self.action_space.high)
         ur_execute(self.p, self.urUid, action, self.urEndEffectorIndex, self.urNumDofs)
-        pass
 
     def get_info(self):    
         self.done = False
@@ -47,19 +47,16 @@ class PlugIn(object):
         # reset ur
         ur_base_pose = np.array([0, 0.0, -0.1])+self.offset
         table_base_pose = np.array([0.0,-0.5,-1.3])+self.offset
-        self.rest_poses=[0.15328961509984124, -1.8, -1.5820032364177563,
-                     -1.2879050862601897, 1.5824233979484994, 0.19581299859677043]
+        self.rest_poses=[3.172306597303268, -1.7963777540644157, 1.79467186617118, 0.13610846611006164, 0.14318352968043557, -0.01613721010103956]
         flags = self.p.URDF_ENABLE_CACHED_GRAPHICS_SHAPES | self.p.URDF_USE_INERTIA_FROM_FILE
         self.urUid, _ = init_ur(self.p, ur_base_pose, self.rest_poses, table_base_pose, flags)
-        self.arm_vel = []
     
-        # init flying object
-        # base_orn = self.p.getQuaternionFromEuler([random.uniform(-math.pi, math.pi) for i in range(3)])
-        # self.objectUid = self.p.loadURDF(os.path.join(os.path.dirname(os.path.realpath(__file__)),"assets/urdf/banana.urdf"),
-        #                     basePosition=np.array([0,0,10])+self.offset, baseOrientation=base_orn,
-        #                     globalScaling=1)
+        # init charge board
+        base_orn = self.p.getQuaternionFromEuler([0,0,0])
+        self.objectUid = self.p.loadURDF(os.path.join(os.path.dirname(os.path.realpath(__file__)),"assets/urdf/charge_board.urdf"),
+                            basePosition=np.array([0.4,0.5,0.5])+self.offset, baseOrientation=base_orn,
+                            globalScaling=1)
         # self.p.changeDynamics(self.objectUid, -1, linearDamping=0, angularDamping=0)
-        # self.object_real_traj = None
         
         # done
         self.done = False

@@ -1,3 +1,4 @@
+from posixpath import join
 import pybullet as p
 import numpy as np
 import pybullet_data
@@ -42,7 +43,7 @@ def init_ur(client, ur_pos, ur_orn, table_pos, flags=0):
                                 baseOrientation=[0, 0, 0, 1],useFixedBase=True,
                                 flags=flags)
     for i in range(len(ur_orn)):
-        client.resetJointState(ur_id,i,ur_orn[i])
+        client.resetJointState(ur_id,i+1,ur_orn[i])
     table_id = init_table(client, table_pos, flags)
     return ur_id, table_id
 
@@ -69,14 +70,20 @@ def panda_execute(client, panda_id, action, pandaEndEffectorIndex, pandaNumDofs,
     client.setJointMotorControlArray(panda_id,list(range(pandaNumDofs))+[9,10],client.POSITION_CONTROL,list(jointPoses)+2*[fingers], positionGains=[1]*9) 
 
 def ur_execute(client, ur_id, action, urEndEffectorIndex, urNumDofs, dv=2/240.):
-    orientation=client.getQuaternionFromEuler([-1.2879050862601897, 1.5824233979484994, 0.19581299859677043])
-    currentPose=client.getLinkState(ur_id,urEndEffectorIndex)
-    currentPosition=currentPose[0]
-    # orientation=currentPose[1]
-    # newPosition = vel_constraint(currentPosition, action[:3], dv)
-    newPosition = action
-    jointPoses=client.calculateInverseKinematics(ur_id,urEndEffectorIndex,newPosition,orientation)[0:7]
-    client.setJointMotorControlArray(ur_id,list(range(1,urNumDofs+1)),client.POSITION_CONTROL,list(jointPoses), positionGains=[0.03]*urNumDofs) 
+    pos = action[:3]
+    orn = client.getQuaternionFromEuler(action[3:6])
+
+    # get max force
+    max_forces = []
+    num_joints = client.getNumJoints(ur_id)
+    for i in range(num_joints):
+        max_forces.append(client.getJointInfo(ur_id, i)[10])
+    jointPoses=client.calculateInverseKinematics(ur_id,urEndEffectorIndex,pos,orn)
+    print("ddddd", jointPoses)
+    currentPose=client.getLinkState(ur_id,urEndEffectorIndex)[1]
+    # client.getEulerFromQuaternion(currentPose)
+    print("ffffffff", client.getEulerFromQuaternion(currentPose))
+    client.setJointMotorControlArray(ur_id,list(range(1,urNumDofs+1)),client.POSITION_CONTROL,list(jointPoses), positionGains=[0.03]*urNumDofs, forces=max_forces[1:7]) #
 
 
 def vel_constraint(cur, tar, dv):
