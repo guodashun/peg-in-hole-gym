@@ -87,15 +87,16 @@ class BaseEnv(gym.Env):
             self.sub_envs[i].render(mode)
 
 
-    def reset(self):
-        self.p.resetSimulation()
+    def reset(self, hard_reset=False):
+        if hard_reset:
+            self.p.resetSimulation()
         # reset task
         self.observations = self.observation_space.sample()
         self.rewards = [0. for _ in range(self.task_num)]
         self.infos = [{} for _ in range(self.task_num)]
         self.dones = [False for _ in range(self.task_num)]
         for i in range(self.task_num):
-            self.observations[i] = self.sub_envs[i].reset()
+            self.observations[i] = self.sub_envs[i].reset(hard_reset)
         return self.observations
 
 

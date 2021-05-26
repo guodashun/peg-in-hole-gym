@@ -224,7 +224,7 @@ class PegInHole(object):
 
         return vec.tolist()
 
-    def reset(self):
+    def reset(self, hard_reset=False):
         flags = self.p.URDF_ENABLE_CACHED_GRAPHICS_SHAPES
         self.p.configureDebugVisualizer(self.p.COV_ENABLE_RENDERING,1)        
         self.gravity = [0,0,-9.8]

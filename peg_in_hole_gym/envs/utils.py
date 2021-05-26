@@ -48,15 +48,13 @@ def init_ur(client, ur_pos, ur_orn, table_pos, flags=0):
     return ur_id, table_id
 
 
-# useless because of resetSimulation()
 def reset_panda(client, panda_id, panda_orn):
     for i in range(len(panda_orn)):
         client.resetJointState(panda_id,i,panda_orn[i])
 
-# useless because of resetSimulation()
 def reset_ur(client, ur_id, ur_orn):
     for i in range(len(ur_orn)):
-        client.resetJointState(ur_id,i,ur_orn[i])
+        client.resetJointState(ur_id,i+1,ur_orn[i])
 
 
 def panda_execute(client, panda_id, action, pandaEndEffectorIndex, pandaNumDofs, dv=2/240.):
@@ -79,10 +77,8 @@ def ur_execute(client, ur_id, action, urEndEffectorIndex, urNumDofs, dv=2/240.):
     for i in range(num_joints):
         max_forces.append(client.getJointInfo(ur_id, i)[10])
     jointPoses=client.calculateInverseKinematics(ur_id,urEndEffectorIndex,pos,orn)
-    print("ddddd", jointPoses)
     currentPose=client.getLinkState(ur_id,urEndEffectorIndex)[1]
     # client.getEulerFromQuaternion(currentPose)
-    print("ffffffff", client.getEulerFromQuaternion(currentPose))
     client.setJointMotorControlArray(ur_id,list(range(1,urNumDofs+1)),client.POSITION_CONTROL,list(jointPoses), positionGains=[0.03]*urNumDofs, forces=max_forces[1:7]) #
 
 

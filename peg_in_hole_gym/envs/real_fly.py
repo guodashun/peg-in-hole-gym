@@ -50,7 +50,7 @@ class RealFly(object):
         return 0.,0., self.done, info
     
 
-    def reset(self):
+    def reset(self, hard_reset=False):
         self.p.configureDebugVisualizer(self.p.COV_ENABLE_RENDERING,1)        
         self.gravity = [0,0,-9.8]
         self.p.setGravity(self.gravity[0], self.gravity[1], self.gravity[2])

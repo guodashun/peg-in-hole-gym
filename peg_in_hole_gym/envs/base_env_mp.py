@@ -10,6 +10,7 @@ class BaseEnvMp(gym.Env):
     RESET = 1
     STEP = 2
     RENDER = 3
+    HARD_RESET = 4
     
     def __init__(self, client, task, mp_num=1, sub_num=1, offset=[0,0,0], args=None, is_test=False):
         if client == p.GUI:
@@ -50,13 +51,13 @@ class BaseEnvMp(gym.Env):
         return self.observations, self.rewards, self.dones, self.infos
 
     
-    def reset(self):
+    def reset(self, hard_reset = False):
         self.observations = self.observation_space.sample()
         self.rewards = [[0. for _ in range(self.sub_num)] for _ in range(self.mp_num)]
         self.infos = [[{} for _ in range(self.sub_num)] for _ in range(self.mp_num)]
         self.dones = [[False for _ in range(self.sub_num)] for _ in range(self.mp_num)]
         for i in range(self.mp_num):
-            self.msg_queues[i].put([self.RESET, None])
+            self.msg_queues[i].put([self.HARD_RESET if hard_reset else self.RESET, None])
         for i in range(self.mp_num):
             self.observations[i] = self.res_queues[i].get()
         return self.observations
@@ -74,8 +75,8 @@ class BaseEnvMp(gym.Env):
     def worker(self, idx, msg_queue, res_queue):
         while True:
             msg, args = msg_queue.get()
-            if msg == self.RESET:
-                obs = self.clients[idx].reset()
+            if msg == self.RESET or msg == self.HARD_RESET:
+                obs = self.clients[idx].reset(msg == self.HARD_RESET)
                 res_queue.put(obs)
             if msg == self.STEP:
                 obs, reward, done, info = self.clients[idx].step(args)
