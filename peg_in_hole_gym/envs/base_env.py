@@ -6,26 +6,24 @@ from pybullet_utils.bullet_client import BulletClient
 from .peg_in_hole import PegInHole
 from .random_fly import RandomFly
 from .real_fly import RealFly
-from .plug_in import PlugIn
 from .utils import test_mode, MultiAgentActionSpace, MultiAgentObservationSpace
 
-task_list = {
+TASK_LIST = {
     'peg-in-hole':PegInHole, 
     'random-fly' :RandomFly,
     'real-fly'   :RealFly,
-    'plug-in'    :PlugIn,
 }
 
 class BaseEnv(gym.Env):
     metadata = {'render.modes':['human', 'rgb_array']}
     def __init__(self, client, task='peg-in-hole', task_num = 1, offset = [0,0,0], args=None, is_test=False):
-        assert task in task_list
+        assert task in TASK_LIST
         assert (task_num == 1 or (task_num > 1 and offset != [0,0,0]))
         self.task = task
         self.task_num = task_num
         self.offset = offset
         self.args = args
-        self.sub_env = task_list[self.task]
+        self.sub_env = TASK_LIST[self.task]
         self.p = BulletClient(client)
         self.p.resetDebugVisualizerCamera(cameraDistance=1.5,cameraYaw=0,
                                      cameraPitch=-40,cameraTargetPosition=[0.55,-0.35,0.2])

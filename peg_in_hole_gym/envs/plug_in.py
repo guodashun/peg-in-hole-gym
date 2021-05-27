@@ -2,12 +2,9 @@ import os
 import math
 import time
 import random
-from numpy.lib.npyio import load
 import numpy as np
-from queue import Queue
 from gym import spaces
 from .utils import init_ur, ur_execute, reset_ur
-from .assets.lstm.flyer import Flyer
 
 class PlugIn(object):
     action_space=spaces.Box(np.array([-0.8,0,0,-math.pi,-math.pi,-math.pi]),np.array([0.8,0.8,0.8,math.pi,math.pi,math.pi]))
@@ -43,8 +40,7 @@ class PlugIn(object):
         action = np.clip(action, self.action_space.low,self.action_space.high)
         ur_execute(self.p, self.urUid, action, self.urEndEffectorIndex, self.urNumDofs)
 
-    def get_info(self):    
-        self.done = False
+    def get_info(self):
         info = {}
         return 0.,0., self.done, info
 
