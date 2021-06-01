@@ -10,7 +10,7 @@ for root, dirs, files in os.walk(directory):
 
 setuptools.setup(
     name='peg-in-hole-gym',
-    version='0.0.3',
+    version='0.1.0',
     description='An gym env for simulating flexible tube grasp.',
     long_description=Path('README.md').read_text(),
     long_description_content_type='text/markdown',
@@ -19,6 +19,6 @@ setuptools.setup(
     install_requires=['gym', 'pybullet', 'numpy'],
     url='https://github.com/guodashun/peg-in-hole-gym',
     author='luckky',
-    author_email='luckky@gmail.com',
+    author_email='luckkywz@gmail.com',
     license='MIT',
 )

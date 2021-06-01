@@ -12,9 +12,13 @@ class MetaEnv(object):
         self.offset = np.array(offset)
 
         self._load_models()
+        self._reset_internals()
         self.done = False
     
     def _load_models(self):
+        raise NotImplementedError
+
+    def _reset_internals(self):
         raise NotImplementedError
 
     def apply_action(self, action):
@@ -26,11 +30,13 @@ class MetaEnv(object):
     def reset(self, hard_reset=False):
         if hard_reset:
             self._load_models()
-        
+        self._reset_internals()
         self.done = False
+    
         ''' 
         return obs 
         '''
+    
     def render(self, mode='rgb_array'):
         raise NotImplementedError
         
