@@ -8,13 +8,9 @@ Gym env for multi-task simulation with kinds of robotic arms, engined by pybulle
 
   ![peg-in-hole](./img/peg-in-hole.gif)
 
-- random-fly
+- More
 
-  ![random-fly](./img/random-fly.gif)
-
-- real-fly
-
-- plug-in
+  With *meta_env* you can easily create your custom env.
 
 ## Features
 
