@@ -3,11 +3,12 @@ import math
 import numpy as np
 import pybullet as p
 import pybullet_data
+from gym import spaces
 
 class MetaEnv(object):
-    action_space = None
-    observation_space = None
-    def __init__(self, client, offset):
+    action_space = spaces.Box(np.array([-1]),np.array([1]))
+    observation_space = spaces.Box(np.array([-1]),np.array([1]))
+    def __init__(self, client, offset, args=[]):
         self.p = client
         self.offset = np.array(offset)
 

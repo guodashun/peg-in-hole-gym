@@ -13,8 +13,8 @@ TASK_LIST = {
 class BaseEnv(gym.Env):
     metadata = {'render.modes':['human', 'rgb_array']}
     def __init__(self, client, task='peg-in-hole', task_num = 1, offset = [0,0,0], args=None, is_test=False):
-        assert task in TASK_LIST
-        assert (task_num == 1 or (task_num > 1 and offset != [0,0,0]))
+        assert task in TASK_LIST, "Please regisiter your custom env first!"
+        assert (task_num == 1 or (task_num > 1 and offset != [0,0,0])), "Offset is in valid."
         self.task = task
         self.task_num = task_num
         self.offset = offset
