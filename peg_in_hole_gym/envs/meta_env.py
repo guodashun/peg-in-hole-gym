@@ -49,9 +49,10 @@ class MetaEnv(object):
                     if (k==ord(test_key)):
                         func()
 
-    def init_table(self, table_pos, flags):
+    def init_table(self, table_pos=[0.0,-0.5,-1.3], table_orn=[0, 0, math.pi/2], scale=2, flags=0):
+        self.p.setAdditionalSearchPath(pybullet_data.getDataPath())
         self.table_id=self.p.loadURDF("table/table.urdf",basePosition=table_pos, 
-                                      baseOrientation=self.p.getQuaternionFromEuler([0, 0, math.pi/2]), globalScaling=2,
+                                      baseOrientation=self.p.getQuaternionFromEuler(table_orn), globalScaling=scale,
                                       flags=flags)
 
     def init_panda(self, panda_pos, panda_orn, table_pos, flags=0):
@@ -61,7 +62,7 @@ class MetaEnv(object):
                                     flags=flags)
         for i in range(len(panda_orn)):
             self.p.resetJointState(self.panda_id,i,panda_orn[i])
-        self.init_table(table_pos, flags)
+        self.init_table(table_pos, flags=flags)
 
     def init_ur(self, ur_pos, ur_orn, table_pos, flags=0):
         self.p.setAdditionalSearchPath(pybullet_data.getDataPath())
@@ -70,7 +71,7 @@ class MetaEnv(object):
                                     flags=flags)
         for i in range(len(ur_orn)):
             self.p.resetJointState(self.ur_id,i+1,ur_orn[i])
-        self.init_table(table_pos, flags)
+        self.init_table(table_pos, flags=flags)
 
 
     def reset_panda(self, panda_orn):
